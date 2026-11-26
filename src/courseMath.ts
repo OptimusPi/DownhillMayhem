@@ -48,9 +48,10 @@ function rawElevationY(s: number): number {
     return Math.max(0, (over / RUNOFF_LENGTH_M) ** 2 * 3.8);
   }
   const u = (t - 18) / (COURSE_LENGTH_M - 18);
-  // Smooth ease-in from staging pad into steep downhill plunge, easing out at finish bowl
-  const smoothDrop = u * u * (3 - 2 * u) * 0.35 + u * 0.65;
-  let y = apronEnd * (1 - smoothDrop) + Math.sin(u * Math.PI * 3.0) * 3.2 * (1 - u * 0.65);
+  // C1-continuous ease-in matching the -0.025 staging slope at t=18, steepening smoothly downhill
+  const slopeMatch = 0.025 * (COURSE_LENGTH_M - 18) / apronEnd;
+  const smoothDrop = u * slopeMatch + u * u * ((3 - 2 * u) * (1 - slopeMatch));
+  let y = apronEnd * (1 - smoothDrop) + Math.sin(u * Math.PI * 3.0) * 3.2 * u * (1 - u * 0.65);
   const kick1 = Math.exp(-(((t - 240) / 15) ** 2)) * 2.2;
   const kick2 = Math.exp(-(((t - 560) / 16) ** 2)) * 2.5;
   y += kick1 + kick2;

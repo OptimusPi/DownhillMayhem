@@ -365,7 +365,14 @@ export function PlayerController({
       if (derbyLive.countdownElapsed >= 2.6) {
         st.setPhase("racing");
         const mass = Math.max(100, veh.body.mass());
-        veh.body.applyImpulse({ x: 0, y: -mass * 0.5, z: mass * 3.5 }, true);
+        veh.body.applyImpulse(
+          {
+            x: spawn.tangent[0] * mass * 3.5,
+            y: spawn.tangent[1] * mass * 3.5,
+            z: spawn.tangent[2] * mass * 3.5,
+          },
+          true,
+        );
       }
       return;
     }
@@ -464,7 +471,7 @@ export function PlayerController({
 
   const spawn = useMemo(() => sampleCourse(8), []);
   const readyRide = loadedRide?.matchKey === currentMatchKey ? loadedRide : null;
-  const spawnLift = readyRide?.flightMode ? 1.5 : 0.65;
+  const spawnLift = readyRide?.flightMode ? 1.5 : 0.12;
   const showHoodLauncher = activeRideId !== "starfighter_delta" && !readyRide?.flightMode;
 
   return (
