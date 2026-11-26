@@ -485,7 +485,6 @@ export function PlayerController({
           rotation={[spawn.pitch, spawn.yaw, 0]}
           piloted
           flightMode={readyRide.flightMode}
-          angularDamping={1.65}
           linearDamping={0.08}
           vehicleRef={vehicleRef}
           getInput={getCombinedInput}
