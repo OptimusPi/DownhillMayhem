@@ -1,7 +1,7 @@
 import * as THREE from "three";
+import { loadKhrGlb, type KhrAssetBundle } from "@khr3/core";
 import { ENGINE_TORQUE_CURVES, STEER_SPEED_CURVES } from "@khr3/core/curves";
 import {
-  PAPER_SHELL_PRESETS,
   buildPaperShellAssembly,
   exportPaperShellKhrGlb,
   type PaperShellPreset,
@@ -20,12 +20,12 @@ import type { DerbyRideId } from "./derbyStore";
 export interface DerbyRideEntry {
   readonly id: DerbyRideId;
   readonly name: string;
-  readonly driver: string;
   readonly category: "derby-glb" | "math-car" | "space-jet";
   readonly badge: string;
-  readonly roast: string;
+  readonly desc: string;
   readonly horsepower: number;
   readonly massKg: number;
+  readonly targetLengthM: number;
   readonly flightCapable: boolean;
   readonly startFlight?: boolean;
   readonly glbUrl?: string;
@@ -34,142 +34,142 @@ export interface DerbyRideEntry {
 export const DERBY_RIDES: readonly DerbyRideEntry[] = [
   {
     id: "bathtub",
-    name: "Porcelain Panic",
-    driver: "Alfalfa (Age 41)",
+    name: "Clawfoot Tub",
     category: "derby-glb",
-    badge: "Soapbox Tub",
-    roast: "Cast-iron clawfoot tub on Harbor Freight casters. Zero lumbar support.",
-    horsepower: 260,
-    massKg: 420,
+    badge: "Soapbox GLB",
+    desc: "Porcelain bathtub bolted onto a wide downhill kart axle.",
+    horsepower: 320,
+    massKg: 1180,
+    targetLengthM: 3.45,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_bathtub_1p.glb",
   },
   {
     id: "cardboard_rocket",
-    name: "Cardboard Apollo",
-    driver: "Spanky (Age 43)",
+    name: "Cardboard Rocket",
     category: "derby-glb",
-    badge: "Jets [Shift] / Fly [G]",
-    roast: "Refrigerator box + duct tape + two sketchy model rocket boosters.",
-    horsepower: 310,
-    massKg: 340,
+    badge: "Jets [Shift] · Fly [G]",
+    desc: "Duct-taped appliance box rigged with twin rear rocket thrusters.",
+    horsepower: 360,
+    massKg: 1120,
+    targetLengthM: 3.55,
     flightCapable: true,
     glbUrl: "/assets/veh_derby_cardboard_rocket_1p.glb",
   },
   {
     id: "shopping_trolley",
-    name: "Costco Express",
-    driver: "Stymie (Age 42)",
+    name: "Shopping Trolley",
     category: "derby-glb",
-    badge: "Bulk-Aisle Drift",
-    roast: "One front wheel permanently wobbles left. Holds 48 rotisserie chickens.",
-    horsepower: 255,
-    massKg: 380,
+    badge: "2-Seat Cart",
+    desc: "Reinforced wire grocery cart built for high-speed curb hops.",
+    horsepower: 315,
+    massKg: 1140,
+    targetLengthM: 3.4,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_shopping_trolley_2p.glb",
   },
   {
     id: "viking_keg",
-    name: "Valhalla Keg",
-    driver: "Buckwheat (Age 42)",
+    name: "Oak Barrel Rig",
     category: "derby-glb",
-    badge: "Oak Barrel",
-    roast: "Craft IPA fermentation barrel on lawnmower axles. Smells like bad decisions.",
-    horsepower: 280,
-    massKg: 440,
+    badge: "Heavy Roller",
+    desc: "Iron-hooped oak cask on chunky pneumatic tires.",
+    horsepower: 335,
+    massKg: 1250,
+    targetLengthM: 3.5,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_viking_keg_1p.glb",
   },
   {
     id: "firetruck",
-    name: "HOA Fire Marshal",
-    driver: "Porkchop (Age 44)",
+    name: "Pedal Firetruck",
     category: "derby-glb",
-    badge: "Heavy Rammer",
-    roast: "Pedal firetruck retrofitted with a leaf-blower supercharger.",
-    horsepower: 340,
-    massKg: 620,
+    badge: "Battering Ram",
+    desc: "Stretched two-seat ladder rig that plows straight through barricades.",
+    horsepower: 375,
+    massKg: 1380,
+    targetLengthM: 3.85,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_firetruck_2p.glb",
   },
   {
     id: "racer_1p",
-    name: "The Blur 2.0",
-    driver: "Butch (Age 43)",
+    name: " Gravity Wedge",
     category: "derby-glb",
-    badge: "Classic Wedge",
-    roast: "Still painted the same shade of Krylon flame-red from 1994.",
-    horsepower: 295,
-    massKg: 390,
+    badge: "Classic Derby",
+    desc: "Low-slung plywood soapbox torpedo with sharp turn-in.",
+    horsepower: 340,
+    massKg: 1120,
+    targetLengthM: 3.45,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_racer_1p.glb",
   },
   {
     id: "radio_wagon",
-    name: "Midlife Radio Flyer",
-    driver: "Waldo (Age 43)",
+    name: "Red Flyer Wagon",
     category: "derby-glb",
-    badge: "Tax-Bracket Wagon",
-    roast: "Bought a titanium chassis to beat his childhood friends. Still wobbles.",
-    horsepower: 270,
-    massKg: 330,
+    badge: "Steel Pan",
+    desc: "Stamped red yard wagon widened for 100+ km/h downhill runs.",
+    horsepower: 325,
+    massKg: 1100,
+    targetLengthM: 3.35,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_radio_wagon_1p.glb",
   },
   {
     id: "crate_rod",
-    name: "Milk Crate Hot Rod",
-    driver: "Froggy (Age 41)",
+    name: "Milk Crate Rod",
     category: "derby-glb",
-    badge: "Plywood Rat",
-    roast: "4x4 fence posts, 2 milk crates, and a prayer to Sir Isaac Newton.",
-    horsepower: 285,
-    massKg: 370,
+    badge: "Backyard Rat",
+    desc: "Lumber rails, stacked plastic crates, and zero bodywork.",
+    horsepower: 330,
+    massKg: 1150,
+    targetLengthM: 3.45,
     flightCapable: false,
     glbUrl: "/assets/veh_derby_crate_rod_1p.glb",
   },
   {
     id: "coupe_86",
-    name: "Spanky's Paid-Off Coupe",
-    driver: "Spanky (Math Car)",
+    name: "Coupe 86",
     category: "math-car",
-    badge: "Procedural PaperShell",
-    roast: "Generated purely from Kolmo car math! 285,000 miles, zero payments left.",
-    horsepower: 310,
-    massKg: 940,
+    badge: "PaperShell Math",
+    desc: "Generated purely from Kolmo procedural car math — balanced RWD drift.",
+    horsepower: 330,
+    massKg: 1050,
+    targetLengthM: 4.2,
     flightCapable: false,
   },
   {
     id: "kei_van",
-    name: "Dad-Bod Kei Van",
-    driver: "Stymie (Math Van)",
+    name: "Kei Cargo Van",
     category: "math-car",
-    badge: "Procedural PaperShell",
-    roast: "Built with Kolmo math! Room for 6 kids' soccer bags and a potato cannon.",
-    horsepower: 275,
-    massKg: 880,
+    badge: "PaperShell Math",
+    desc: "Boxy procedural micro-van with short wheelbase and snappy steering.",
+    horsepower: 295,
+    massKg: 1020,
+    targetLengthM: 3.6,
     flightCapable: false,
   },
   {
     id: "six_by_six",
-    name: "6x6 HOA Nightmare",
-    driver: "Buckwheat (Math 6x6)",
+    name: "6x6 Jet Rig",
     category: "math-car",
     badge: "6WD + Jets [G]",
-    roast: "Six PaperShell wheels + twin thrusters. Strictly illegal in cul-de-sacs.",
-    horsepower: 410,
-    massKg: 1180,
+    desc: "Six driven PaperShell wheels paired with twin rear jet thrusters.",
+    horsepower: 420,
+    massKg: 1280,
+    targetLengthM: 4.6,
     flightCapable: true,
   },
   {
     id: "starfighter_delta",
-    name: "Darla's Fighter Space Jet",
-    driver: "Darla (Age 40)",
+    name: "Delta Starfighter",
     category: "space-jet",
-    badge: "6-DoF Space Fighter",
-    roast: "Darla brought an orbital delta fighter jet to a wooden soapbox derby.",
-    horsepower: 480,
+    badge: "6-DoF Space Jet",
+    desc: "Procedural KHR space fighter craft with full aerial thruster flight.",
+    horsepower: 520,
     massKg: 1450,
+    targetLengthM: 5.8,
     flightCapable: true,
     startFlight: true,
   },
@@ -177,7 +177,7 @@ export const DERBY_RIDES: readonly DerbyRideEntry[] = [
 
 const SIX_BY_SIX_PRESET: PaperShellPreset = {
   id: "sedan_92",
-  label: "6x6 HOA Nightmare",
+  label: "6x6 Jet Rig",
   doorCount: 4,
   wheelbase: 3.35,
   trackWidth: 1.82,
@@ -199,11 +199,11 @@ const SIX_BY_SIX_PRESET: PaperShellPreset = {
   chassisMassKg: 900,
   engineMassKg: 280,
   defaultFuelLiters: 90,
-  defaultHorsepower: 410,
+  defaultHorsepower: 420,
   defaultMaxRPM: 6000,
 };
 
-function appendRearJetPropellers(glb: Uint8Array, zOffset = -1.35, yOffset = 0.62, maxThrust = 14000): Uint8Array {
+function appendRearJetPropellers(glb: Uint8Array, zOffset = -1.65, yOffset = 0.65, maxThrust = 15000): Uint8Array {
   const view = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
   const jsonLen = view.getUint32(12, true);
   const doc = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + jsonLen))) as {
@@ -212,8 +212,8 @@ function appendRearJetPropellers(glb: Uint8Array, zOffset = -1.35, yOffset = 0.6
   const rootNode = doc.nodes[0];
   const children = Array.isArray(rootNode?.children) ? (rootNode.children as number[]) : [];
   for (const [name, xOff, invTorque] of [
-    ["Jet_Booster_L", 0.45, false],
-    ["Jet_Booster_R", -0.45, true],
+    ["Jet_Booster_L", 0.48, false],
+    ["Jet_Booster_R", -0.48, true],
   ] as const) {
     children.push(doc.nodes.length);
     doc.nodes.push({
@@ -255,76 +255,83 @@ function appendRearJetPropellers(glb: Uint8Array, zOffset = -1.35, yOffset = 0.6
 
 function buildSpaceFighterGroup(): THREE.Group {
   const root = new THREE.Group();
-  root.name = "Darla_Space_Fighter";
-  const hullMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35, metalness: 0.35, flatShading: true });
-  const accentMat = new THREE.MeshStandardMaterial({ color: 0xec4899, roughness: 0.4, metalness: 0.25, flatShading: true });
+  root.name = "Delta_Starfighter";
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.35, metalness: 0.35, flatShading: true });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.4, metalness: 0.25, flatShading: true });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.55, metalness: 0.45, flatShading: true });
-  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.48, flatShading: true });
+  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.15, metalness: 0.2, flatShading: true });
 
-  const fuselage = new THREE.Mesh(new THREE.ConeGeometry(0.76, 5.8, 6), hullMat);
+  const fuselage = new THREE.Mesh(new THREE.ConeGeometry(0.82, 6.2, 6), hullMat);
   fuselage.name = "Fighter_Fuselage";
   fuselage.rotation.x = Math.PI * 0.5;
-  fuselage.position.set(0, 0.72, 0.2);
+  fuselage.position.set(0, 0.75, 0.25);
 
-  const canopy = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), canopyMat);
+  const canopy = new THREE.Mesh(new THREE.OctahedronGeometry(0.56, 0), canopyMat);
   canopy.name = "Fighter_Canopy";
-  canopy.scale.set(0.72, 0.58, 1.8);
-  canopy.position.set(0, 1.16, 0.58);
+  canopy.scale.set(0.75, 0.6, 1.85);
+  canopy.position.set(0, 1.18, 0.65);
 
-  const wingL = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.12, 2.2), hullMat);
+  const wingL = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.14, 2.4), hullMat);
   wingL.name = "Fighter_Wing_L";
-  wingL.position.set(1.72, 0.66, -0.55);
+  wingL.position.set(1.85, 0.68, -0.55);
   wingL.rotation.y = -0.28;
 
-  const wingR = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.12, 2.2), hullMat);
+  const wingR = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.14, 2.4), hullMat);
   wingR.name = "Fighter_Wing_R";
-  wingR.position.set(-1.72, 0.66, -0.55);
+  wingR.position.set(-1.85, 0.68, -0.55);
   wingR.rotation.y = 0.28;
 
-  const finL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 1.0, 1.15), accentMat);
+  const finL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.05, 1.25), accentMat);
   finL.name = "Fighter_Fin_L";
-  finL.position.set(0.68, 1.28, -1.85);
-  finL.rotation.z = -0.24;
+  finL.position.set(0.72, 1.32, -1.95);
+  finL.rotation.z = -0.25;
 
-  const finR = new THREE.Mesh(new THREE.BoxGeometry(0.11, 1.0, 1.15), accentMat);
+  const finR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.05, 1.25), accentMat);
   finR.name = "Fighter_Fin_R";
-  finR.position.set(-0.68, 1.28, -1.85);
-  finR.rotation.z = 0.24;
+  finR.position.set(-0.72, 1.32, -1.95);
+  finR.rotation.z = 0.25;
 
-  const engineL = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.75, 8), darkMat);
+  const engineL = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.8, 8), darkMat);
   engineL.name = "Fighter_Engine_L";
   engineL.rotation.x = Math.PI * 0.5;
-  engineL.position.set(0.42, 0.7, -2.55);
+  engineL.position.set(0.45, 0.72, -2.65);
 
-  const engineR = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.75, 8), darkMat);
+  const engineR = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.8, 8), darkMat);
   engineR.name = "Fighter_Engine_R";
   engineR.rotation.x = Math.PI * 0.5;
-  engineR.position.set(-0.42, 0.7, -2.55);
+  engineR.position.set(-0.45, 0.72, -2.65);
 
   root.add(fuselage, canopy, wingL, wingR, finL, finR, engineL, engineR);
   return root;
 }
 
-const rideBytesCache = new Map<DerbyRideId, Promise<Uint8Array>>();
+export interface CompiledDerbyRide {
+  readonly id: string;
+  readonly bundle: KhrAssetBundle;
+  readonly bytes: Uint8Array;
+  readonly flightMode: boolean;
+}
+
+const rideBundleCache = new Map<DerbyRideId, Promise<CompiledDerbyRide>>();
 
 export function getRideSpec(id: DerbyRideId | "custom"): DerbyRideEntry {
   return DERBY_RIDES.find((r) => r.id === id) ?? DERBY_RIDES[0]!;
 }
 
-export function buildDerbyRideBytes(id: DerbyRideId): Promise<Uint8Array> {
-  const hit = rideBytesCache.get(id);
+export function buildDerbyRideBundle(id: DerbyRideId): Promise<CompiledDerbyRide> {
+  const hit = rideBundleCache.get(id);
   if (hit) return hit;
 
   const spec = getRideSpec(id);
-  const task = (async (): Promise<Uint8Array> => {
+  const task = (async (): Promise<CompiledDerbyRide> => {
+    let finalBytes: Uint8Array;
+
     if (id === "coupe_86" || id === "kei_van") {
       const raw = await buildProceduralCarGlb(id, id === "coupe_86" ? "dc-smooth" : "psx-flat", {
         horsepower: spec.horsepower,
       });
-      return new Uint8Array(raw);
-    }
-
-    if (id === "six_by_six") {
+      finalBytes = new Uint8Array(raw);
+    } else if (id === "six_by_six") {
       const baseAsm = buildPaperShellAssembly(SIX_BY_SIX_PRESET, "dc-smooth");
       const rl = baseAsm.wheels.find((w) => w.slotId.includes("rl")) ?? baseAsm.wheels[2]!;
       const rr = baseAsm.wheels.find((w) => w.slotId.includes("rr")) ?? baseAsm.wheels[3]!;
@@ -360,61 +367,67 @@ export function buildDerbyRideBytes(id: DerbyRideId): Promise<Uint8Array> {
           },
         ),
       );
-      return appendRearJetPropellers(stamped, -2.75, 0.88, 16000);
-    }
-
-    if (id === "starfighter_delta") {
+      finalBytes = appendRearJetPropellers(stamped, -2.75, 0.88, 16500);
+    } else if (id === "starfighter_delta") {
       const grp = buildSpaceFighterGroup();
       const raw = await compileKhrAssetGlb(grp, {
         archetype: "craft",
         massKg: spec.massKg,
-        powerOrThrust: 26000,
-        name: "Darla_Space_Fighter",
+        powerOrThrust: 28000,
+        name: "Delta_Starfighter",
         patches: [
           { nodeName: "Socket_seat_pilot", translation: [0, 0.95, 0.55], extension: { socket: "seat" } },
           { nodeName: "Socket_exit_pilot", translation: [2.1, 0.65, 0.2], extension: { socket: "exit" } },
-          { nodeName: "Thruster_L", translation: [0.42, 0.7, -2.95], extension: { kind: "plume", drive: "throttle", color: [0.22, 0.78, 1], size: 1.35 } },
-          { nodeName: "Thruster_R", translation: [-0.42, 0.7, -2.95], extension: { kind: "plume", drive: "throttle", color: [0.22, 0.78, 1], size: 1.35 } },
+          { nodeName: "Thruster_Plume_L", translation: [0.45, 0.72, -3.05], extension: { kind: "plume", drive: "throttle", color: [0.22, 0.78, 1], size: 1.35 } },
+          { nodeName: "Thruster_Plume_R", translation: [-0.45, 0.72, -3.05], extension: { kind: "plume", drive: "throttle", color: [0.22, 0.78, 1], size: 1.35 } },
         ],
       });
-      return new Uint8Array(raw);
+      finalBytes = new Uint8Array(raw);
+    } else {
+      const url = spec.glbUrl ?? "/assets/veh_derby_bathtub_1p.glb";
+      const { bytes } = await loadOrAutoCompileVehicleGlb(url, {
+        horsepower: spec.horsepower,
+        targetLengthM: spec.targetLengthM,
+        massKg: spec.massKg,
+      });
+      const stamped = new Uint8Array(
+        stampKolmoNodesIntoGlb(
+          bytes,
+          [
+            { nodeName: "Socket_seat_driver", translation: [0, 0.85, 0], extension: { socket: "seat" } },
+            { nodeName: "Socket_exit_driver", translation: [1.6, 0.45, 0], extension: { socket: "exit" } },
+            { nodeName: "Derby_Plume_L", translation: [0.42, 0.42, -1.68], extension: { kind: "plume", drive: "boost", color: [1, 0.55, 0.14], size: 1.05 } },
+            { nodeName: "Derby_Plume_R", translation: [-0.42, 0.42, -1.68], extension: { kind: "plume", drive: "boost", color: [1, 0.55, 0.14], size: 1.05 } },
+          ],
+          {
+            tune: {
+              engineHorsepower: spec.horsepower,
+              engineMaxRPM: 6800,
+              gearRatios: [3.4, 2.2, 1.48, 1.08, 0.84],
+              finalDriveRatio: 3.85,
+              transmissionMode: "auto",
+              maxSteerAngle: 0.54,
+              engineTorqueCurveData: ENGINE_TORQUE_CURVES.naScreamer,
+              steerAngleCurveData: STEER_SPEED_CURVES.driftCountersteer,
+            },
+          },
+        ),
+      );
+      finalBytes = id === "cardboard_rocket" ? appendRearJetPropellers(stamped, -1.75, 0.65, 14000) : stamped;
     }
 
-    // CubicWave Derby GLB vehicle -> auto-compile into 4-wheel KHR bundle + stamp derby boost plumes
-    const url = spec.glbUrl ?? "/assets/veh_derby_bathtub_1p.glb";
-    const { bytes } = await loadOrAutoCompileVehicleGlb(url, {
-      horsepower: spec.horsepower,
-      targetLengthM: 2.75,
-      massKg: spec.massKg,
-    });
-    const stamped = new Uint8Array(
-      stampKolmoNodesIntoGlb(
-        bytes,
-        [
-          { nodeName: "Socket_seat_driver", translation: [0, 0.82, 0], extension: { socket: "seat" } },
-          { nodeName: "Socket_exit_driver", translation: [1.45, 0.45, 0], extension: { socket: "exit" } },
-          { nodeName: "Derby_Plume_L", translation: [0.34, 0.42, -1.38], extension: { kind: "plume", drive: "boost", color: [1, 0.55, 0.14], size: 1.05 } },
-          { nodeName: "Derby_Plume_R", translation: [-0.34, 0.42, -1.38], extension: { kind: "plume", drive: "boost", color: [1, 0.55, 0.14], size: 1.05 } },
-        ],
-        {
-          tune: {
-            engineHorsepower: spec.horsepower,
-            engineMaxRPM: 6800,
-            gearRatios: [3.5, 2.25, 1.5, 1.1, 0.85],
-            finalDriveRatio: 3.9,
-            transmissionMode: "auto",
-            maxSteerAngle: 0.58,
-            engineTorqueCurveData: ENGINE_TORQUE_CURVES.naScreamer,
-            steerAngleCurveData: STEER_SPEED_CURVES.driftCountersteer,
-          },
-        },
-      ),
-    );
-    return id === "cardboard_rocket" ? appendRearJetPropellers(stamped, -1.42, 0.58, 11500) : stamped;
+    const ab = finalBytes.buffer.slice(finalBytes.byteOffset, finalBytes.byteOffset + finalBytes.byteLength) as ArrayBuffer;
+    const bundle = await loadKhrGlb(ab);
+    return {
+      id,
+      bundle,
+      bytes: finalBytes,
+      flightMode: Boolean(spec.startFlight),
+    };
   })();
 
-  rideBytesCache.set(id, task);
-  task.catch(() => rideBytesCache.delete(id));
+  rideBundleCache.set(id, task);
+  task.catch(() => rideBundleCache.delete(id));
   return task;
 }
 
@@ -422,7 +435,7 @@ export async function ingestCustomDerbyFile(
   fileName: string,
   buffer: ArrayBuffer,
 ): Promise<{ name: string; bytes: Uint8Array; flightMode: boolean }> {
-  const cleanName = fileName.replace(/\.(glb|gltf|usd|usda|usdc|usdz)$/i, "") || "Custom Contraption";
+  const cleanName = fileName.replace(/\.(glb|gltf|usd|usda|usdc|usdz)$/i, "") || "Custom Craft";
   let rawBytes: Uint8Array;
   if (isUsdFileName(fileName)) {
     const converted = await convertUsdToGlb(buffer);
@@ -431,9 +444,9 @@ export async function ingestCustomDerbyFile(
     rawBytes = new Uint8Array(buffer);
   }
   const compiled = await loadOrAutoCompileVehicleGlb(rawBytes, {
-    horsepower: 300,
-    targetLengthM: 3.1,
-    massKg: 520,
+    horsepower: 340,
+    targetLengthM: 3.6,
+    massKg: 1180,
   });
   const flightMode = compiled.bundle.propellers.length > 0 && compiled.bundle.wheels.length === 0;
   return { name: cleanName, bytes: compiled.bytes, flightMode };

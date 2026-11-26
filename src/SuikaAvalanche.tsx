@@ -27,7 +27,7 @@ export const SUIKA_TIERS: readonly SuikaOrbTier[] = [
   { id: 4, name: "Cerenkov Melon", radius: 1.65, color: "#00e5ff", emissive: "#18ffff", mass: 110, score: 1200, detail: 2 },
   { id: 5, name: "Cobalt Boulder", radius: 2.67, color: "#2979ff", emissive: "#448aff", mass: 260, score: 2600, detail: 2 },
   { id: 6, name: "Violet Planetoid", radius: 4.32, color: "#aa00ff", emissive: "#e040fb", mass: 620, score: 6000, detail: 2 },
-  { id: 7, name: "HOA Doom Melon", radius: 6.99, color: "#ff007f", emissive: "#ff4081", mass: 1500, score: 15000, detail: 3 },
+  { id: 7, name: "Solar Core", radius: 6.99, color: "#ff007f", emissive: "#ff4081", mass: 1500, score: 5000, detail: 3 },
 ];
 
 export interface ActiveSuikaBall {

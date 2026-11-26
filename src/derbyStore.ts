@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { DestructibleTargetSpec } from "@pinkaphant/kolmo";
-import { COURSE_LENGTH_M, START_ELEVATION_M } from "./courseMath";
+import { START_ELEVATION_M } from "./courseMath";
 import { derbyAudio } from "./derbyAudio";
 
 export type DerbyRideId =
@@ -20,11 +20,11 @@ export type DerbyRideId =
 export type DerbyWeaponId = "potato" | "suika" | "junk";
 export type RacePhase = "countdown" | "racing" | "finished";
 
-export interface CommentaryLine {
+export interface ToastNotice {
   readonly id: number;
-  readonly speaker: string;
   readonly text: string;
   readonly color: string;
+  readonly untilMs: number;
 }
 
 export interface ActivePotatoShot {
@@ -37,12 +37,11 @@ export interface ActivePotatoShot {
 export interface FinishSummary {
   readonly rank: number;
   readonly timeSec: number;
-  readonly finesDollars: number;
+  readonly score: number;
   readonly shatters: number;
   readonly suikaMerges: number;
   readonly bestSuikaTier: number;
   readonly rideLabel: string;
-  readonly superlative: string;
 }
 
 export interface RivalLiveState {
@@ -56,42 +55,40 @@ export interface RivalLiveState {
 }
 
 export const derbyLive = {
-  playerPos: [0, START_ELEVATION_M + 1.2, 4] as [number, number, number],
+  playerPos: [0, START_ELEVATION_M + 0.65, 8] as [number, number, number],
   playerForward: [0, 0, 1] as [number, number, number],
   playerVel: [0, 0, 0] as [number, number, number],
-  playerS: 4,
+  playerS: 8,
   playerSpeedKmh: 0,
   playerElevM: START_ELEVATION_M,
   raceTimeSec: 0,
   rank: 1,
   boostCharge: 100,
-  airTimeSec: 0,
   countdownElapsed: 0,
   rivals: [
-    { id: "rival-waldo", name: "Waldo (Hedge-Fund Tub)", s: 8, lateral: -3.2, speedMps: 0, spinTimer: 0, pos: [0, START_ELEVATION_M, 8] },
-    { id: "rival-alfalfa", name: "Alfalfa (Duct-Tape Rocket)", s: 7, lateral: 3.1, speedMps: 0, spinTimer: 0, pos: [0, START_ELEVATION_M, 7] },
-    { id: "rival-buckwheat", name: "Buckwheat (BBQ Keg)", s: 5.5, lateral: -1.6, speedMps: 0, spinTimer: 0, pos: [0, START_ELEVATION_M, 5.5] },
-    { id: "rival-spanky", name: "Spanky (CPA Crate Rod)", s: 6.2, lateral: 1.7, speedMps: 0, spinTimer: 0, pos: [0, START_ELEVATION_M, 6.2] },
+    { id: "rival-1", name: "Red Wagon", s: 11.5, lateral: -3.4, speedMps: 0, spinTimer: 0, pos: [3.4, START_ELEVATION_M, 11.5] },
+    { id: "rival-2", name: "Cardboard Booster", s: 10.5, lateral: 3.4, speedMps: 0, spinTimer: 0, pos: [-3.4, START_ELEVATION_M, 10.5] },
+    { id: "rival-3", name: "Oak Barrel", s: 9.2, lateral: -1.8, speedMps: 0, spinTimer: 0, pos: [1.8, START_ELEVATION_M, 9.2] },
+    { id: "rival-4", name: "Crate Rod", s: 9.8, lateral: 1.8, speedMps: 0, spinTimer: 0, pos: [-1.8, START_ELEVATION_M, 9.8] },
   ] as RivalLiveState[],
 };
 
 export function resetDerbyLive(): void {
-  derbyLive.playerPos = [0, START_ELEVATION_M + 1.2, 4];
+  derbyLive.playerPos = [0, START_ELEVATION_M + 0.65, 8];
   derbyLive.playerForward = [0, 0, 1];
   derbyLive.playerVel = [0, 0, 0];
-  derbyLive.playerS = 4;
+  derbyLive.playerS = 8;
   derbyLive.playerSpeedKmh = 0;
   derbyLive.playerElevM = START_ELEVATION_M;
   derbyLive.raceTimeSec = 0;
   derbyLive.rank = 1;
   derbyLive.boostCharge = 100;
-  derbyLive.airTimeSec = 0;
   derbyLive.countdownElapsed = 0;
   const startOffsets = [
-    { s: 8, lat: -3.2 },
-    { s: 7, lat: 3.1 },
-    { s: 5.5, lat: -1.6 },
-    { s: 6.2, lat: 1.7 },
+    { s: 11.5, lat: -3.4 },
+    { s: 10.5, lat: 3.4 },
+    { s: 9.2, lat: -1.8 },
+    { s: 9.8, lat: 1.8 },
   ];
   derbyLive.rivals.forEach((r, idx) => {
     const off = startOffsets[idx]!;
@@ -99,7 +96,7 @@ export function resetDerbyLive(): void {
     r.lateral = off.lat;
     r.speedMps = 0;
     r.spinTimer = 0;
-    r.pos = [off.lat, START_ELEVATION_M, off.s];
+    r.pos = [-off.lat, START_ELEVATION_M, off.s];
   });
 }
 
@@ -110,12 +107,11 @@ interface DerbyStoreState {
   customRide: { name: string; bytes: Uint8Array; flightMode: boolean } | null;
   weapon: DerbyWeaponId;
   suikaTier: number;
-  hoaFineDollars: number;
+  score: number;
   shatters: number;
   suikaMerges: number;
   bestSuikaTier: number;
-  combo: number;
-  commentary: CommentaryLine | null;
+  toast: ToastNotice | null;
   garageOpen: boolean;
   workshopOpen: boolean;
   muted: boolean;
@@ -130,30 +126,21 @@ interface DerbyStoreState {
   setCustomRide: (name: string, bytes: Uint8Array, flightMode: boolean) => void;
   setWeapon: (w: DerbyWeaponId) => void;
   setSuikaTier: (t: number) => void;
-  pushCommentary: (speaker: string, text: string, color?: string) => void;
-  addFine: (dollars: number) => void;
-  recordShatter: (fineDollars: number, label?: string) => void;
+  pushToast: (text: string, color?: string) => void;
+  addScore: (points: number) => void;
+  recordShatter: (points: number, label?: string) => void;
   recordSuikaMerge: (toTier: number, scoreGain: number) => void;
   toggleGarage: (force?: boolean) => void;
   toggleWorkshop: (force?: boolean) => void;
   toggleMute: () => void;
   spawnDynamicJunk: (spec: DestructibleTargetSpec) => void;
   spawnPotatoShot: (shot: ActivePotatoShot) => void;
-  pruneProjectiles: (nowMs: number) => void;
+  pruneTransient: (nowMs: number) => void;
   finishRace: (rideLabel: string) => void;
   restartRace: () => void;
 }
 
-let commentSeq = 1;
-
-function pickSuperlative(rank: number, fines: number, shatters: number, merges: number): string {
-  if (fines >= 4000) return "Most Wanted by the Oakridge Estates HOA";
-  if (merges >= 3) return "Certified Suika Avalanche Menace";
-  if (shatters >= 10) return "Lemonade Stand Demolition Contractor";
-  if (rank === 1) return "Undisputed 40-Something Soapbox Legend";
-  if (rank === 5) return "Best Attempt While Checking Work Email";
-  return "Survived Without Pulling a Hamstring";
-}
+let toastSeq = 1;
 
 export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
   phase: "countdown",
@@ -162,17 +149,11 @@ export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
   customRide: null,
   weapon: "potato",
   suikaTier: 1,
-  hoaFineDollars: 0,
+  score: 0,
   shatters: 0,
   suikaMerges: 0,
   bestSuikaTier: 0,
-  combo: 0,
-  commentary: {
-    id: 0,
-    speaker: "SPANKY (RACE STEWARD)",
-    text: "35 years later, zero health insurance, 118 meters of downhill regret. HANDS OFF THE BRAKES!",
-    color: "#fde047",
-  },
+  toast: null,
   garageOpen: false,
   workshopOpen: false,
   muted: false,
@@ -183,7 +164,8 @@ export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
 
   setPhase: (phase) => set({ phase }),
   setCountdownNum: (countdownNum) => set({ countdownNum }),
-  selectRide: (id) =>
+  selectRide: (id) => {
+    resetDerbyLive();
     set((s) => ({
       activeRideId: id,
       customRide: null,
@@ -194,8 +176,11 @@ export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
       finishSummary: null,
       dynamicJunk: [],
       projectiles: [],
-    })),
-  setCustomRide: (name, bytes, flightMode) =>
+      toast: null,
+    }));
+  },
+  setCustomRide: (name, bytes, flightMode) => {
+    resetDerbyLive();
     set((s) => ({
       activeRideId: "custom",
       customRide: { name, bytes, flightMode },
@@ -207,39 +192,34 @@ export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
       finishSummary: null,
       dynamicJunk: [],
       projectiles: [],
-    })),
+      toast: { id: ++toastSeq, text: `Spawned ${name}`, color: "#38bdf8", untilMs: performance.now() + 2200 },
+    }));
+  },
   setWeapon: (weapon) => set({ weapon }),
   setSuikaTier: (t) => set({ suikaTier: Math.max(0, Math.min(4, t)) }),
-  pushCommentary: (speaker, text, color = "#38bdf8") =>
+  pushToast: (text, color = "#38bdf8") =>
     set({
-      commentary: { id: ++commentSeq, speaker, text, color },
+      toast: { id: ++toastSeq, text, color, untilMs: performance.now() + 2100 },
     }),
-  addFine: (dollars) =>
-    set((s) => ({ hoaFineDollars: s.hoaFineDollars + dollars })),
-  recordShatter: (fineDollars, label) =>
+  addScore: (points) => set((s) => ({ score: s.score + points })),
+  recordShatter: (points, label) =>
     set((s) => ({
       shatters: s.shatters + 1,
-      combo: s.combo + 1,
-      hoaFineDollars: s.hoaFineDollars + fineDollars,
-      commentary: label
-        ? {
-            id: ++commentSeq,
-            speaker: "HOA CLAIMS ADJUSTER",
-            text: `${label} OBLITERATED! +$${fineDollars} property fine`,
-            color: "#fb923c",
-          }
-        : s.commentary,
+      score: s.score + points,
+      toast: label
+        ? { id: ++toastSeq, text: `${label} +${points}`, color: "#fb923c", untilMs: performance.now() + 1800 }
+        : s.toast,
     })),
   recordSuikaMerge: (toTier, scoreGain) =>
     set((s) => ({
       suikaMerges: s.suikaMerges + 1,
       bestSuikaTier: Math.max(s.bestSuikaTier, toTier),
-      hoaFineDollars: s.hoaFineDollars + scoreGain,
-      commentary: {
-        id: ++commentSeq,
-        speaker: "SUIKA PHYSICS",
-        text: `TIER ${toTier} MEGA-ORB MERGE! Gravity is now legally a weapon (+$${scoreGain})`,
+      score: s.score + scoreGain,
+      toast: {
+        id: ++toastSeq,
+        text: `Tier ${toTier} Suika Merge +${scoreGain}`,
         color: "#f472b6",
+        untilMs: performance.now() + 2000,
       },
     })),
   toggleGarage: (force) =>
@@ -264,38 +244,35 @@ export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
       if (next.length > 18) next.shift();
       return { projectiles: next };
     }),
-  pruneProjectiles: (nowMs) => {
-    const cur = get().projectiles;
-    if (cur.length === 0) return;
-    const filtered = cur.filter((p) => nowMs - p.bornAt < 2400);
-    if (filtered.length !== cur.length) set({ projectiles: filtered });
+  pruneTransient: (nowMs) => {
+    const st = get();
+    const nextProj = st.projectiles.length > 0 ? st.projectiles.filter((p) => nowMs - p.bornAt < 2400) : st.projectiles;
+    const clearToast = st.toast !== null && nowMs >= st.toast.untilMs;
+    if (nextProj.length !== st.projectiles.length || clearToast) {
+      set({
+        projectiles: nextProj,
+        ...(clearToast ? { toast: null } : {}),
+      });
+    }
   },
   finishRace: (rideLabel) => {
     const s = get();
     if (s.phase === "finished") return;
     const rank = derbyLive.rank;
     const timeSec = derbyLive.raceTimeSec;
+    const bonus = Math.max(0, (6 - rank) * 500);
     derbyAudio.playFinishFanfare(rank);
     set({
       phase: "finished",
+      score: s.score + bonus,
       finishSummary: {
         rank,
         timeSec,
-        finesDollars: s.hoaFineDollars,
+        score: s.score + bonus,
         shatters: s.shatters,
         suikaMerges: s.suikaMerges,
         bestSuikaTier: s.bestSuikaTier,
         rideLabel,
-        superlative: pickSuperlative(rank, s.hoaFineDollars, s.shatters, s.suikaMerges),
-      },
-      commentary: {
-        id: ++commentSeq,
-        speaker: "FINISH ARCH",
-        text:
-          rank === 1
-            ? `1ST PLACE IN ${timeSec.toFixed(1)}s! Somebody ice Spanky's lower back!`
-            : `FINISHED #${rank} IN ${timeSec.toFixed(1)}s! Total HOA Fines: $${s.hoaFineDollars}`,
-        color: "#4ade80",
       },
     });
   },
@@ -304,21 +281,15 @@ export const useDerbyStore = create<DerbyStoreState>((set, get) => ({
     set((s) => ({
       phase: "countdown",
       countdownNum: 3,
-      hoaFineDollars: 0,
+      score: 0,
       shatters: 0,
       suikaMerges: 0,
       bestSuikaTier: 0,
-      combo: 0,
       finishSummary: null,
       dynamicJunk: [],
       projectiles: [],
+      toast: null,
       runNonce: s.runNonce + 1,
-      commentary: {
-        id: ++commentSeq,
-        speaker: "DARLA (TIMING BOOTH)",
-        text: `Track cleared (${COURSE_LENGTH_M}m). Nobody tell our cardiologists.`,
-        color: "#fde047",
-      },
     }));
   },
 }));

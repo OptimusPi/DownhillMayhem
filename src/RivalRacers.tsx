@@ -19,10 +19,10 @@ interface RivalSpec {
 }
 
 const RIVAL_SPECS: readonly RivalSpec[] = [
-  { index: 0, id: "rival-waldo", glbUrl: "/assets/veh_derby_radio_wagon_1p.glb", baseSpeedMps: 31, laneFreq: 0.7, laneAmp: 3.6, lanePhase: 0.4, rubberBand: 0.25 },
-  { index: 1, id: "rival-alfalfa", glbUrl: "/assets/veh_derby_cardboard_rocket_1p.glb", baseSpeedMps: 33.5, laneFreq: 0.95, laneAmp: 4.1, lanePhase: 1.7, rubberBand: 0.3 },
-  { index: 2, id: "rival-buckwheat", glbUrl: "/assets/veh_derby_viking_keg_1p.glb", baseSpeedMps: 29.5, laneFreq: 0.55, laneAmp: 3.2, lanePhase: 2.9, rubberBand: 0.22 },
-  { index: 3, id: "rival-spanky", glbUrl: "/assets/veh_derby_crate_rod_1p.glb", baseSpeedMps: 32, laneFreq: 0.85, laneAmp: 3.9, lanePhase: 4.2, rubberBand: 0.28 },
+  { index: 0, id: "rival-1", glbUrl: "/assets/veh_derby_radio_wagon_1p.glb", baseSpeedMps: 31, laneFreq: 0.7, laneAmp: 3.6, lanePhase: 0.4, rubberBand: 0.25 },
+  { index: 1, id: "rival-2", glbUrl: "/assets/veh_derby_cardboard_rocket_1p.glb", baseSpeedMps: 33.5, laneFreq: 0.95, laneAmp: 4.1, lanePhase: 1.7, rubberBand: 0.3 },
+  { index: 2, id: "rival-3", glbUrl: "/assets/veh_derby_viking_keg_1p.glb", baseSpeedMps: 29.5, laneFreq: 0.55, laneAmp: 3.2, lanePhase: 2.9, rubberBand: 0.22 },
+  { index: 3, id: "rival-4", glbUrl: "/assets/veh_derby_crate_rod_1p.glb", baseSpeedMps: 32, laneFreq: 0.85, laneAmp: 3.9, lanePhase: 4.2, rubberBand: 0.28 },
 ];
 
 const _q = new THREE.Quaternion();
@@ -55,7 +55,6 @@ function RivalCarEntity({ spec }: { readonly spec: RivalSpec }): React.JSX.Eleme
         spinAngleRef.current *= 0.85;
       }
 
-      // Rubber-band slightly toward player so the pack stays competitive & hilarious
       const gap = derbyLive.playerS - rival.s;
       const targetSpeed =
         rival.s >= COURSE_LENGTH_M + 22
@@ -87,22 +86,21 @@ function RivalCarEntity({ spec }: { readonly spec: RivalSpec }): React.JSX.Eleme
     }
   });
 
-  const initialSample = useMemo(() => sampleCourse(derbyLive.rivals[spec.index]?.s ?? 6), [spec.index]);
+  const initialSample = useMemo(() => sampleCourse(derbyLive.rivals[spec.index]?.s ?? 10), [spec.index]);
 
   return (
     <RigidBody
       ref={rbRef}
       type="kinematicPosition"
       colliders={false}
-      position={[initialSample.position[0], initialSample.position[1] + 0.5, initialSample.position[2]]}
+      position={[initialSample.position[0], initialSample.position[1] + 0.45, initialSample.position[2]]}
       userData={{ rivalId: spec.id, rivalIndex: spec.index }}
     >
       <CuboidCollider args={[0.72, 0.55, 1.3]} />
       <group ref={visualSpinRef}>
         <primitive object={cloned} />
-        {/* Bright rooftop race marker beacon so rivals stand out down the hill */}
-        <mesh position={[0, 1.85, 0]}>
-          <octahedronGeometry args={[0.26, 0]} />
+        <mesh position={[0, 1.65, 0]}>
+          <octahedronGeometry args={[0.2, 0]} />
           <meshBasicMaterial color="#facc15" />
         </mesh>
       </group>

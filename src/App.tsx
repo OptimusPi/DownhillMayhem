@@ -30,14 +30,9 @@ export function App(): React.JSX.Element {
       try {
         const res = await ingestCustomDerbyFile(file.name, buf);
         useDerbyStore.getState().setCustomRide(res.name, res.bytes, res.flightMode);
-        useDerbyStore
-          .getState()
-          .pushCommentary("IMPORT GATE", `Custom ride "${res.name}" dropped onto the start ramp!`, "#38bdf8");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        useDerbyStore
-          .getState()
-          .pushCommentary("IMPORT ERROR", `Could not compile ${file.name}: ${msg}`, "#f87171");
+        useDerbyStore.getState().pushToast(`Import failed: ${msg}`, "#f87171");
       }
     });
   }, []);
@@ -47,10 +42,10 @@ export function App(): React.JSX.Element {
     if (!veh?.body) return;
     const pos = veh.currPos;
     const proj = projectToCourse(pos.x, pos.z);
-    const safeSample = sampleCourse(Math.max(4, proj.s));
+    const safeSample = sampleCourse(Math.max(8, proj.s));
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(safeSample.pitch, safeSample.yaw, 0, "YXZ"));
     veh.body.setTranslation(
-      { x: safeSample.position[0], y: safeSample.position[1] + 1.4, z: safeSample.position[2] },
+      { x: safeSample.position[0], y: safeSample.position[1] + 1.1, z: safeSample.position[2] },
       true,
     );
     veh.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);

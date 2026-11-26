@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { loadKhrGlb, type KhrAssetBundle } from "@khr3/core";
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { BallCollider, RigidBody } from "@react-three/rapier";
@@ -19,7 +20,7 @@ import {
   type ActivePotatoShot,
   type DerbyWeaponId,
 } from "./derbyStore";
-import { buildDerbyRideBytes, getRideSpec } from "./rideGarage";
+import { buildDerbyRideBundle, getRideSpec } from "./rideGarage";
 import { launchSuikaAvalancheOrb, resetSuikaAvalanche, useSuikaAvalancheStore } from "./SuikaAvalanche";
 
 const LAUNCHER_GLB: Record<DerbyWeaponId, string> = {
@@ -28,7 +29,7 @@ const LAUNCHER_GLB: Record<DerbyWeaponId, string> = {
   junk: "/assets/launcher_water_balloon_slingshot.glb",
 };
 
-function RoofLauncherModel({ weapon }: { readonly weapon: DerbyWeaponId }): React.JSX.Element {
+function HoodLauncherMount({ weapon }: { readonly weapon: DerbyWeaponId }): React.JSX.Element {
   const gPotato = useGLTF(LAUNCHER_GLB.potato);
   const gSuika = useGLTF(LAUNCHER_GLB.suika);
   const gJunk = useGLTF(LAUNCHER_GLB.junk);
@@ -41,7 +42,7 @@ function RoofLauncherModel({ weapon }: { readonly weapon: DerbyWeaponId }): Reac
   }, [weapon, gPotato.scene, gSuika.scene, gJunk.scene]);
 
   return (
-    <group position={[0, 1.08, 0.15]} scale={[0.95, 0.95, 0.95]}>
+    <group position={[0.34, 0.56, 0.35]} scale={[0.52, 0.52, 0.52]}>
       <primitive object={cloned} />
     </group>
   );
@@ -84,6 +85,13 @@ const _targetPos = new THREE.Vector3();
 let shotSeq = 1;
 let junkSeq = 1;
 
+interface LoadedPlayerRide {
+  readonly matchKey: string;
+  readonly bundle: KhrAssetBundle;
+  readonly bytes: Uint8Array;
+  readonly flightMode: boolean;
+}
+
 export function PlayerController({
   targetHandlesRef,
   vehicleRef,
@@ -97,7 +105,8 @@ export function PlayerController({
   const weapon = useDerbyStore((s) => s.weapon);
   const projectiles = useDerbyStore((s) => s.projectiles);
 
-  const [rideBytes, setRideBytes] = useState<Uint8Array | null>(null);
+  const currentMatchKey = `${activeRideId}:${customRide?.name ?? ""}`;
+  const [loadedRide, setLoadedRide] = useState<LoadedPlayerRide | null>(null);
   const lastShotMsRef = useRef(0);
   const lastCountdownBeepRef = useRef(4);
   const lastResetPressedRef = useRef(false);
@@ -110,21 +119,44 @@ export function PlayerController({
   }, [runNonce]);
 
   useEffect(() => {
-    if (activeRideId === "custom" && customRide) {
-      setRideBytes(customRide.bytes);
-      return;
-    }
     let alive = true;
+    const matchKey = `${activeRideId}:${customRide?.name ?? ""}`;
+    if (activeRideId === "custom" && customRide) {
+      const ab = customRide.bytes.buffer.slice(
+        customRide.bytes.byteOffset,
+        customRide.bytes.byteOffset + customRide.bytes.byteLength,
+      ) as ArrayBuffer;
+      void loadKhrGlb(ab).then((bundle) => {
+        if (alive) {
+          setLoadedRide({
+            matchKey,
+            bundle,
+            bytes: customRide.bytes,
+            flightMode: customRide.flightMode,
+          });
+        }
+      });
+      return () => {
+        alive = false;
+      };
+    }
+
     const id = activeRideId === "custom" ? "bathtub" : activeRideId;
-    void buildDerbyRideBytes(id).then((bytes) => {
-      if (alive) setRideBytes(bytes);
+    void buildDerbyRideBundle(id).then((compiled) => {
+      if (alive) {
+        setLoadedRide({
+          matchKey,
+          bundle: compiled.bundle,
+          bytes: compiled.bytes,
+          flightMode: compiled.flightMode,
+        });
+      }
     });
     return () => {
       alive = false;
     };
   }, [activeRideId, customRide]);
 
-  // Keyboard shortcuts for weapons + firing + wheel for Suika tier
   useEffect(() => {
     const dom = gl.domElement;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -168,8 +200,7 @@ export function PlayerController({
   const getCombinedInput = useCallback((): Partial<KolmoInputState> => {
     const touch = getTouchInput();
     const st = useDerbyStore.getState();
-    const locked = st.phase === "countdown";
-    if (locked) {
+    if (st.phase === "countdown") {
       return {
         forward: false,
         backward: false,
@@ -177,11 +208,11 @@ export function PlayerController({
         right: false,
         brake: true,
         boost: false,
+        interact: false,
       };
     }
     return {
       ...touch,
-      // Keep Kolmo's built-in E interact from colliding with our E launcher fire key
       interact: false,
     };
   }, [getTouchInput]);
@@ -190,38 +221,37 @@ export function PlayerController({
     (veh: EcctrlVehicleHandle) => {
       const st = useDerbyStore.getState();
       const now = performance.now();
-      const cooldown = st.weapon === "potato" ? 210 : st.weapon === "suika" ? 280 : 250;
+      const cooldown = st.weapon === "potato" ? 210 : st.weapon === "suika" ? 270 : 240;
       if (now - lastShotMsRef.current < cooldown) return;
       lastShotMsRef.current = now;
 
       _fwd.copy(veh.bodyZAxis).normalize();
       _up.copy(veh.bodyYAxis).normalize();
       const muzzle: [number, number, number] = [
-        veh.currPos.x + _fwd.x * 1.45 + _up.x * 1.15,
-        veh.currPos.y + _fwd.y * 1.45 + _up.y * 1.15,
-        veh.currPos.z + _fwd.z * 1.45 + _up.z * 1.15,
+        veh.currPos.x + _fwd.x * 1.65 + _up.x * 0.85,
+        veh.currPos.y + _fwd.y * 1.65 + _up.y * 0.85,
+        veh.currPos.z + _fwd.z * 1.65 + _up.z * 0.85,
       ];
 
       if (st.weapon === "potato") {
         derbyAudio.playPotatoThoomp();
-        const speed = 58;
+        const speed = 60;
         st.spawnPotatoShot({
           id: `spud-${++shotSeq}`,
           origin: muzzle,
           velocity: [
             _fwd.x * speed + veh.currLinVel.x,
-            _fwd.y * speed + veh.currLinVel.y + 3.5,
+            _fwd.y * speed + veh.currLinVel.y + 3.0,
             _fwd.z * speed + veh.currLinVel.z,
           ],
           bornAt: now,
         });
 
-        // Hitscan against DestructibleTargets downrange for instant satisfying BVH shatter!
-        _rayDir.copy(_fwd).addScaledVector(_up, 0.04).normalize();
+        _rayDir.copy(_fwd).addScaledVector(_up, 0.03).normalize();
         const handles = targetHandlesRef.current;
         if (handles) {
           let bestId: string | null = null;
-          let bestDist = 85;
+          let bestDist = 90;
           handles.forEach((h, id) => {
             const snap = h.getSnapshot();
             if (!snap.alive) return;
@@ -230,7 +260,7 @@ export function PlayerController({
             if (proj < 0 || proj > bestDist) return;
             _closest.set(muzzle[0], muzzle[1], muzzle[2]).addScaledVector(_rayDir, proj);
             _targetPos.set(snap.position[0], snap.position[1], snap.position[2]);
-            if (_closest.distanceTo(_targetPos) <= 2.1) {
+            if (_closest.distanceTo(_targetPos) <= 2.2) {
               bestDist = proj;
               bestId = id;
             }
@@ -250,7 +280,6 @@ export function PlayerController({
           }
         }
 
-        // Check rival hit downrange -> hilarious spin-out!
         for (const rival of derbyLive.rivals) {
           _toTarget.set(rival.pos[0] - muzzle[0], rival.pos[1] - muzzle[1], rival.pos[2] - muzzle[2]);
           const proj = _toTarget.dot(_rayDir);
@@ -259,12 +288,8 @@ export function PlayerController({
             _targetPos.set(rival.pos[0], rival.pos[1], rival.pos[2]);
             if (_closest.distanceTo(_targetPos) <= 2.3) {
               rival.spinTimer = 1.9;
-              st.addFine(300);
-              st.pushCommentary(
-                "POTATO SNIPER",
-                `DIRECT SPUD HIT ON ${rival.name.toUpperCase()}! +$300 Sportsmanship Fine!`,
-                "#facc15",
-              );
+              st.addScore(250);
+              st.pushToast(`Spud Hit: ${rival.name} +250`, "#facc15");
               break;
             }
           }
@@ -274,11 +299,10 @@ export function PlayerController({
         const speed = 28;
         launchSuikaAvalancheOrb(st.suikaTier, muzzle, [
           _fwd.x * speed + veh.currLinVel.x,
-          _fwd.y * speed + veh.currLinVel.y + 4.8,
+          _fwd.y * speed + veh.currLinVel.y + 4.5,
           _fwd.z * speed + veh.currLinVel.z,
         ]);
       } else {
-        // Junk dropper: Gary's Beans, Tris' Soda, Goofy Emoji cans & Glass Bottles!
         derbyAudio.playSuikaLaunch();
         const cycle = junkSeq % 4;
         const kind = cycle === 3 ? "glass-bottle" : "tin-can";
@@ -297,9 +321,9 @@ export function PlayerController({
           customAlbedoUrl: null,
           canLodMode: "12-gon",
           position: [
-            veh.currPos.x + _fwd.x * 3.5,
-            veh.currPos.y + 1.4,
-            veh.currPos.z + _fwd.z * 3.5,
+            veh.currPos.x + _fwd.x * 4.2,
+            veh.currPos.y + 1.2,
+            veh.currPos.z + _fwd.z * 4.2,
           ],
           hp: 15,
           maxHp: 15,
@@ -314,39 +338,10 @@ export function PlayerController({
   useFrame((_, rawDelta) => {
     const dt = Math.min(0.05, Math.max(1e-4, rawDelta));
     const st = useDerbyStore.getState();
-    st.pruneProjectiles(performance.now());
+    st.pruneTransient(performance.now());
 
     const veh = vehicleRef.current;
     if (!veh || !veh.body) return;
-
-    // 1. Countdown sequence
-    if (st.phase === "countdown") {
-      derbyLive.countdownElapsed += dt;
-      const rem = Math.max(0, 3 - Math.floor(derbyLive.countdownElapsed));
-      if (rem !== lastCountdownBeepRef.current) {
-        lastCountdownBeepRef.current = rem;
-        st.setCountdownNum(rem);
-        derbyAudio.playCountdownBeep(rem === 0);
-      }
-      // Keep car parked cleanly on the start ramp
-      const startSample = sampleCourse(4);
-      veh.body.setTranslation({ x: startSample.position[0], y: startSample.position[1] + 0.85, z: startSample.position[2] }, true);
-      veh.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      veh.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-
-      if (derbyLive.countdownElapsed >= 3.0) {
-        st.setPhase("racing");
-        const mass = Math.max(100, veh.body.mass());
-        veh.body.applyImpulse({ x: 0, y: mass * 1.2, z: mass * 14 }, true);
-        st.pushCommentary("SPANKY", "NO BRAKES! FIRST ONE TO THE BOTTOM DOESN'T PAY FOR PIZZA!", "#4ade80");
-      }
-      return;
-    }
-
-    // 2. Update race timer & telemetry
-    if (st.phase === "racing") {
-      derbyLive.raceTimeSec += dt;
-    }
 
     const pos = veh.currPos;
     const vel = veh.currLinVel;
@@ -356,46 +351,72 @@ export function PlayerController({
     derbyLive.playerSpeedKmh = Math.hypot(vel.x, vel.y, vel.z) * 3.6;
 
     const proj = projectToCourse(pos.x, pos.z);
-    derbyLive.playerS = proj.s;
+    derbyLive.playerS = Math.max(0, proj.s);
     derbyLive.playerElevM = Math.max(0, Math.round(pos.y));
 
-    // Compute live rank against 4 rivals
+    if (st.phase === "countdown") {
+      derbyLive.countdownElapsed += dt;
+      const rem = Math.max(0, 3 - Math.floor(derbyLive.countdownElapsed));
+      if (rem !== lastCountdownBeepRef.current) {
+        lastCountdownBeepRef.current = rem;
+        st.setCountdownNum(rem);
+        derbyAudio.playCountdownBeep(rem === 0);
+      }
+      if (derbyLive.countdownElapsed >= 2.6) {
+        st.setPhase("racing");
+        const mass = Math.max(100, veh.body.mass());
+        veh.body.applyImpulse({ x: 0, y: 0, z: mass * 12 }, true);
+      }
+      return;
+    }
+
+    if (st.phase === "racing") {
+      derbyLive.raceTimeSec += dt;
+    }
+
     let rank = 1;
     for (const r of derbyLive.rivals) {
       if (r.s > derbyLive.playerS) rank++;
     }
     derbyLive.rank = rank;
 
-    // 3. Downhill Tuck Boost [Shift]
-    const shiftHeld = keysHeldRef.current.has("ShiftLeft") || keysHeldRef.current.has("ShiftRight") || Boolean(getTouchInput().boost);
+    const shiftHeld =
+      keysHeldRef.current.has("ShiftLeft") ||
+      keysHeldRef.current.has("ShiftRight") ||
+      Boolean(getTouchInput().boost);
     if (shiftHeld && derbyLive.boostCharge > 2 && st.phase === "racing") {
       const mass = Math.max(100, veh.body.mass());
       veh.body.applyImpulse(
-        { x: veh.bodyZAxis.x * mass * 16 * dt, y: veh.bodyZAxis.y * mass * 16 * dt, z: veh.bodyZAxis.z * mass * 16 * dt },
+        {
+          x: veh.bodyZAxis.x * mass * 15 * dt,
+          y: veh.bodyZAxis.y * mass * 15 * dt,
+          z: veh.bodyZAxis.z * mass * 15 * dt,
+        },
         true,
       );
-      derbyLive.boostCharge = Math.max(0, derbyLive.boostCharge - 34 * dt);
+      derbyLive.boostCharge = Math.max(0, derbyLive.boostCharge - 32 * dt);
     } else {
       derbyLive.boostCharge = Math.min(100, derbyLive.boostCharge + 14 * dt);
     }
 
-    // 4. [R] On-track safety recovery if player flies off the mountain or falls below deck
     const rHeld = keysHeldRef.current.has("KeyR");
-    if ((rHeld && !lastResetPressedRef.current) || pos.y < proj.sample.position[1] - 12 || Math.abs(proj.lateral) > 48) {
-      const safeSample = sampleCourse(Math.max(4, proj.s));
+    if (
+      (rHeld && !lastResetPressedRef.current) ||
+      pos.y < proj.sample.position[1] - 10 ||
+      Math.abs(proj.lateral) > 45
+    ) {
+      const safeSample = sampleCourse(Math.max(8, proj.s));
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(safeSample.pitch, safeSample.yaw, 0, "YXZ"));
       veh.body.setTranslation(
-        { x: safeSample.position[0], y: safeSample.position[1] + 1.4, z: safeSample.position[2] },
+        { x: safeSample.position[0], y: safeSample.position[1] + 1.1, z: safeSample.position[2] },
         true,
       );
       veh.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
       veh.body.setLinvel({ x: safeSample.tangent[0] * 14, y: 0, z: safeSample.tangent[2] * 14 }, true);
       veh.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      st.pushCommentary("TRACK MARSHAL", "Put back on the asphalt! Keep your elbows in the tub!", "#fde047");
     }
     lastResetPressedRef.current = rHeld;
 
-    // 5. Suika boulder knocking over rivals
     const suikaBodies = useSuikaAvalancheStore.getState().bodies;
     for (const [, orbRb] of suikaBodies) {
       try {
@@ -405,8 +426,8 @@ export function PlayerController({
           const dSq = (op.x - rival.pos[0]) ** 2 + (op.y - rival.pos[1]) ** 2 + (op.z - rival.pos[2]) ** 2;
           if (dSq < 6.5) {
             rival.spinTimer = 2.2;
-            st.addFine(400);
-            st.pushCommentary("SUIKA STRIKE", `${rival.name} bowled over by a giant Suika orb! +$400!`, "#f472b6");
+            st.addScore(300);
+            st.pushToast(`Suika Strike: ${rival.name} +300`, "#f472b6");
           }
         }
       } catch {
@@ -414,13 +435,11 @@ export function PlayerController({
       }
     }
 
-    // 6. Firing weapon
     if (firePulseRef.current) {
       firePulseRef.current = false;
       fireActiveWeapon(veh);
     }
 
-    // 7. Finish check
     if (st.phase === "racing" && derbyLive.playerS >= COURSE_LENGTH_M) {
       const label =
         activeRideId === "custom" && customRide
@@ -430,24 +449,28 @@ export function PlayerController({
     }
   });
 
-  const rideSpec = getRideSpec(activeRideId);
-  const startFlight = activeRideId === "custom" ? Boolean(customRide?.flightMode) : Boolean(rideSpec.startFlight);
-  const spawn = useMemo(() => sampleCourse(4), []);
+  const spawn = useMemo(() => sampleCourse(8), []);
+  const readyRide = loadedRide?.matchKey === currentMatchKey ? loadedRide : null;
+  const spawnLift = readyRide?.flightMode ? 1.5 : 0.65;
+  const showHoodLauncher = activeRideId !== "starfighter_delta" && !readyRide?.flightMode;
 
   return (
     <>
-      {rideBytes && (
+      {readyRide && (
         <Vehicle
-          key={`player-ride-${activeRideId}-${customRide?.name ?? "stock"}-${runNonce}`}
-          rawGlbBytes={rideBytes}
-          position={[spawn.position[0], spawn.position[1] + 0.9, spawn.position[2]]}
+          key={`veh-${readyRide.matchKey}-${runNonce}`}
+          bundle={readyRide.bundle}
+          rawGlbBytes={readyRide.bytes}
+          position={[spawn.position[0], spawn.position[1] + spawnLift, spawn.position[2]]}
           rotation={[spawn.pitch, spawn.yaw, 0]}
           piloted
-          flightMode={startFlight}
+          flightMode={readyRide.flightMode}
+          angularDamping={1.65}
+          linearDamping={0.08}
           vehicleRef={vehicleRef}
           getInput={getCombinedInput}
         >
-          <RoofLauncherModel weapon={weapon} />
+          {showHoodLauncher && <HoodLauncherMount weapon={weapon} />}
         </Vehicle>
       )}
       {projectiles.map((shot) => (

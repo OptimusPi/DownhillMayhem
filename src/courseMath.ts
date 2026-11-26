@@ -3,9 +3,9 @@ import * as THREE from "three";
 export const COURSE_LENGTH_M = 820;
 export const RUNOFF_LENGTH_M = 90;
 export const TOTAL_TRACK_M = COURSE_LENGTH_M + RUNOFF_LENGTH_M;
-export const TRACK_HALF_WIDTH = 8.0;
-export const WALL_HEIGHT = 2.6;
-export const START_ELEVATION_M = 118;
+export const TRACK_HALF_WIDTH = 8.2;
+export const WALL_HEIGHT = 2.4;
+export const START_ELEVATION_M = 122;
 
 export interface CourseSample {
   readonly s: number;
@@ -19,42 +19,48 @@ export interface CourseSample {
 }
 
 function rawCenterX(s: number): number {
-  const t = Math.max(0, Math.min(TOTAL_TRACK_M, s));
-  const rampIn = Math.min(1, t / 75);
-  const fadeOut = t > COURSE_LENGTH_M - 30 ? Math.max(0, 1 - (t - (COURSE_LENGTH_M - 30)) / 90) : 1;
+  const t = Math.max(-12, Math.min(TOTAL_TRACK_M, s));
+  if (t <= 22) return 0;
+  const rampIn = Math.min(1, (t - 22) / 65);
+  const fadeOut =
+    t > COURSE_LENGTH_M - 30
+      ? Math.max(0, 1 - (t - (COURSE_LENGTH_M - 30)) / 90)
+      : 1;
   const amp = rampIn * fadeOut;
   return (
     amp *
-    (Math.sin(t * 0.0115) * 28 +
-      Math.sin(t * 0.029 - 0.6) * 11 +
-      Math.cos(t * 0.0062) * 14 -
+    (Math.sin((t - 22) * 0.0115) * 28 +
+      Math.sin((t - 22) * 0.028 - 0.5) * 11 +
+      Math.cos((t - 22) * 0.0062) * 14 -
       14 * rampIn)
   );
 }
 
 function rawElevationY(s: number): number {
-  const t = Math.max(0, Math.min(TOTAL_TRACK_M, s));
-  if (t >= COURSE_LENGTH_M) {
-    // Bowl runoff past finish arch
-    const over = t - COURSE_LENGTH_M;
-    return Math.max(0, (over / RUNOFF_LENGTH_M) ** 2 * 4.5);
+  const t = Math.max(-12, Math.min(TOTAL_TRACK_M, s));
+  // Smooth gentle staging pad for s <= 18m so vehicles park cleanly without fighting slope
+  if (t <= 18) {
+    return START_ELEVATION_M - Math.max(0, t) * 0.025;
   }
-  const u = t / COURSE_LENGTH_M;
-  // Smooth steep-at-top, sweeping middle chutes, flat finish apron
-  let y = START_ELEVATION_M * (1 - u) + Math.sin(u * Math.PI * 3.0) * 3.8 * (1 - u * 0.6);
-  // Subtle kicker ramps at s=240m and s=560m
-  const kick1 = Math.exp(-(((t - 240) / 14) ** 2)) * 2.1;
-  const kick2 = Math.exp(-(((t - 560) / 15) ** 2)) * 2.5;
-  // Smooth flare into finish bowl
-  const flare = u > 0.9 ? ((u - 0.9) / 0.1) ** 2 * 2.2 : 0;
-  y += kick1 + kick2 - flare * 0.4;
+  const apronEnd = START_ELEVATION_M - 18 * 0.025;
+  if (t >= COURSE_LENGTH_M) {
+    const over = t - COURSE_LENGTH_M;
+    return Math.max(0, (over / RUNOFF_LENGTH_M) ** 2 * 3.8);
+  }
+  const u = (t - 18) / (COURSE_LENGTH_M - 18);
+  // Smooth ease-in from staging pad into steep downhill plunge, easing out at finish bowl
+  const smoothDrop = u * u * (3 - 2 * u) * 0.35 + u * 0.65;
+  let y = apronEnd * (1 - smoothDrop) + Math.sin(u * Math.PI * 3.0) * 3.2 * (1 - u * 0.65);
+  const kick1 = Math.exp(-(((t - 240) / 15) ** 2)) * 2.2;
+  const kick2 = Math.exp(-(((t - 560) / 16) ** 2)) * 2.5;
+  y += kick1 + kick2;
   return Math.max(0, y);
 }
 
 export function sampleCourse(s: number): CourseSample {
-  const clamped = Math.max(0, Math.min(TOTAL_TRACK_M, s));
+  const clamped = Math.max(-10, Math.min(TOTAL_TRACK_M, s));
   const ds = 0.5;
-  const s0 = Math.max(0, clamped - ds);
+  const s0 = Math.max(-12, clamped - ds);
   const s1 = Math.min(TOTAL_TRACK_M, clamped + ds);
 
   const x = rawCenterX(clamped);
@@ -69,23 +75,24 @@ export function sampleCourse(s: number): CourseSample {
   const ty = dy / tanLen;
   const tz = dz / tanLen;
 
-  // Right vector = cross(tangent, up) normalized in XZ
+  // Screen-right when facing +Z is (-tz, 0, tx)
   const rxRaw = -tz;
   const rzRaw = tx;
   const rLen = Math.hypot(rxRaw, rzRaw) || 1;
   const rx = rxRaw / rLen;
   const rz = rzRaw / rLen;
 
-  // Normal = cross(right, tangent) (points upward out of road deck)
-  const nx = -rz * ty;
-  const ny = rz * tx - rx * tz;
-  const nz = rx * ty;
-  const nLen = Math.hypot(nx, ny, nz) || 1;
+  // Upward road normal = cross(tangent, right) -> (0, +1, 0) on flat +Z road
+  const nx = ty * rz;
+  const ny = tz * rx - tx * rz; // wait: tz*(-tz) - tx*(tx) = -1, so negate for +Y:
+  const upX = -nx;
+  const upY = -ny;
+  const upZ = -(tx * 0 - ty * rx);
+  const nLen = Math.hypot(upX, upY, upZ) || 1;
 
   const yaw = Math.atan2(tx, tz);
   const pitch = Math.asin(Math.max(-0.95, Math.min(0.95, -ty)));
 
-  // Slightly wider finish bowl
   const width =
     clamped > COURSE_LENGTH_M - 15
       ? TRACK_HALF_WIDTH * 2 + Math.min(18, (clamped - (COURSE_LENGTH_M - 15)) * 0.4)
@@ -96,7 +103,7 @@ export function sampleCourse(s: number): CourseSample {
     position: [x, y, z],
     tangent: [tx, ty, tz],
     right: [rx, 0, rz],
-    normal: [nx / nLen, ny / nLen, nz / nLen],
+    normal: [upX / nLen, upY / nLen, upZ / nLen],
     yaw,
     pitch,
     width,
@@ -108,11 +115,11 @@ export function projectToCourse(x: number, z: number): {
   lateral: number;
   sample: CourseSample;
 } {
-  const approxS = Math.max(0, Math.min(TOTAL_TRACK_M, z));
+  const approxS = Math.max(-8, Math.min(TOTAL_TRACK_M, z));
   let bestS = approxS;
   let bestDistSq = Infinity;
-  const startS = Math.max(0, approxS - 28);
-  const endS = Math.min(TOTAL_TRACK_M, approxS + 28);
+  const startS = Math.max(-8, approxS - 30);
+  const endS = Math.min(TOTAL_TRACK_M, approxS + 30);
   for (let probe = startS; probe <= endS; probe += 2) {
     const cx = rawCenterX(probe);
     const d2 = (x - cx) ** 2 + (z - probe) ** 2;
@@ -150,29 +157,31 @@ export interface SmashClusterSpec {
 }
 
 export const BOOST_PADS: readonly BoostPadSpec[] = [
-  { id: "boost-1", s: 68, lateral: -2.2 },
-  { id: "boost-2", s: 175, lateral: 2.5 },
-  { id: "boost-3", s: 232, lateral: 0 },
-  { id: "boost-4", s: 410, lateral: -2.8 },
-  { id: "boost-5", s: 552, lateral: 0 },
-  { id: "boost-6", s: 705, lateral: 1.8 },
+  { id: "boost-1", s: 64, lateral: -2.0 },
+  { id: "boost-2", s: 172, lateral: 2.4 },
+  { id: "boost-3", s: 230, lateral: 0 },
+  { id: "boost-4", s: 408, lateral: -2.6 },
+  { id: "boost-5", s: 550, lateral: 0 },
+  { id: "boost-6", s: 702, lateral: 1.8 },
 ];
 
 export const HAZARDS: readonly HazardSpec[] = [
-  { id: "haz-ban-1", kind: "banana", s: 98, lateral: 2.4, label: "Produce Spill" },
+  { id: "haz-ban-1", kind: "banana", s: 98, lateral: 2.5, label: "Banana Spill" },
   { id: "haz-hyd-1", kind: "hydrant", s: 152, lateral: -3.2, label: "Hydrant Geyser" },
   { id: "haz-man-1", kind: "manhole", s: 285, lateral: 1.6, label: "Popping Manhole" },
-  { id: "haz-cart-1", kind: "cart", s: 345, lateral: -1.8, label: "Rogue Cart" },
-  { id: "haz-ban-2", kind: "banana", s: 448, lateral: -3.0, label: "Banana Pile" },
+  { id: "haz-cart-1", kind: "cart", s: 345, lateral: -1.8, label: "Runaway Cart" },
+  { id: "haz-ban-2", kind: "banana", s: 448, lateral: -3.0, label: "Banana Crate" },
   { id: "haz-hyd-2", kind: "hydrant", s: 515, lateral: 3.1, label: "Hydrant Geyser" },
-  { id: "haz-man-2", kind: "manhole", s: 640, lateral: -1.2, label: "Sewer Launcher" },
+  { id: "haz-man-2", kind: "manhole", s: 640, lateral: -1.2, label: "Steam Manhole" },
   { id: "haz-cart-2", kind: "cart", s: 745, lateral: 2.6, label: "Runaway Cart" },
 ];
 
 export const SMASH_ZONES: readonly SmashClusterSpec[] = [
+  { id: "sm-bean-0", kind: "beans", s: 44, lateral: -1.8 },
+  { id: "sm-soda-0", kind: "soda", s: 44, lateral: 1.8 },
   { id: "sm-lem-1", kind: "lemonade", s: 122, lateral: -3.4 },
   { id: "sm-bean-1", kind: "beans", s: 126, lateral: 0.4 },
-  { id: "sm-soda-1", kind: "soda", s: 128, lateral: 1.6 },
+  { id: "sm-soda-1", kind: "soda", s: 128, lateral: 1.8 },
   { id: "sm-saw-1", kind: "sawhorse", s: 205, lateral: 2.8 },
   { id: "sm-bot-1", kind: "bottle", s: 262, lateral: -1.5 },
   { id: "sm-emoji-1", kind: "emoji", s: 264, lateral: 1.5 },
@@ -187,7 +196,6 @@ export const SMASH_ZONES: readonly SmashClusterSpec[] = [
   { id: "sm-bean-3", kind: "beans", s: 780, lateral: -1.4 },
   { id: "sm-soda-3", kind: "soda", s: 780, lateral: 1.4 },
   { id: "sm-lem-4", kind: "lemonade", s: 798, lateral: 3.4 },
-  // Finish bowl bowling pins!
   { id: "sm-bowl-1", kind: "beans", s: 842, lateral: -2.2 },
   { id: "sm-bowl-2", kind: "soda", s: 842, lateral: 0 },
   { id: "sm-bowl-3", kind: "emoji", s: 842, lateral: 2.2 },
@@ -206,18 +214,20 @@ export interface CourseMeshData {
 }
 
 function buildIndexedRibbon(
+  startS: number,
+  endS: number,
   stepM: number,
   profileOffsets: readonly { x: number; y: number; color: (s: number) => THREE.Color }[],
-  closeCrossSection = false,
 ): { geometry: THREE.BufferGeometry; vertices: Float32Array; indices: Uint32Array } {
-  const rows = Math.floor(TOTAL_TRACK_M / stepM) + 1;
+  const span = endS - startS;
+  const rows = Math.floor(span / stepM) + 1;
   const cols = profileOffsets.length;
   const positions = new Float32Array(rows * cols * 3);
   const colors = new Float32Array(rows * cols * 3);
   const idxList: number[] = [];
 
   for (let r = 0; r < rows; r++) {
-    const s = Math.min(TOTAL_TRACK_M, r * stepM);
+    const s = Math.min(endS, startS + r * stepM);
     const sample = sampleCourse(s);
     const hwScale = sample.width / (TRACK_HALF_WIDTH * 2);
 
@@ -239,15 +249,16 @@ function buildIndexedRibbon(
     }
   }
 
-  const segCols = closeCrossSection ? cols : cols - 1;
+  // IMPORTANT: c increases from -width to +width along `right` = (-1, 0, 0),
+  // while r increases along `+Z` = (0, 0, +1).
+  // (b - a) x (d - a) = (-1, 0, 0) x (0, 0, +1) = (0, +1, 0) -> UPWARD +Y NORMAL!
   for (let r = 0; r < rows - 1; r++) {
-    for (let c = 0; c < segCols; c++) {
-      const nextC = (c + 1) % cols;
+    for (let c = 0; c < cols - 1; c++) {
       const a = r * cols + c;
-      const b = r * cols + nextC;
+      const b = r * cols + (c + 1);
       const d = (r + 1) * cols + c;
-      const e = (r + 1) * cols + nextC;
-      idxList.push(a, d, b, b, d, e);
+      const e = (r + 1) * cols + (c + 1);
+      idxList.push(a, b, d, b, e, d);
     }
   }
 
@@ -261,61 +272,64 @@ function buildIndexedRibbon(
 }
 
 export function buildCourseGeometry(): CourseMeshData {
-  const cAsphaltA = new THREE.Color("#293241");
-  const cAsphaltB = new THREE.Color("#323d4f");
+  const cAsphaltA = new THREE.Color("#2b3340");
+  const cAsphaltB = new THREE.Color("#343e4f");
+  const cShoulder = new THREE.Color("#475569");
   const cYellow = new THREE.Color("#facc15");
-  const cCurbRed = new THREE.Color("#ef4444");
+  const cCurbRed = new THREE.Color("#dc2626");
   const cCurbWhite = new THREE.Color("#f8fafc");
-  const cFinishDark = new THREE.Color("#0f172a");
-  const cFinishLight = new THREE.Color("#f8fafc");
-  const cRamp = new THREE.Color("#f97316");
+  const cCheckDark = new THREE.Color("#0f172a");
+  const cCheckLight = new THREE.Color("#f8fafc");
+  const cJump = new THREE.Color("#ea580c");
+  const cSlab = new THREE.Color("#1e293b");
 
-  const roadColor = (s: number, lane: "curbL" | "curbR" | "center" | "asphalt"): THREE.Color => {
-    const stripe = Math.floor(s / 4) % 2 === 0;
-    if (s >= COURSE_LENGTH_M - 3 && s <= COURSE_LENGTH_M + 3) {
-      return stripe ? cFinishLight : cFinishDark;
+  const roadColor = (s: number, zone: "skirt" | "curb" | "shoulder" | "lane" | "center"): THREE.Color => {
+    if (zone === "skirt") return cSlab;
+    const stripe = Math.floor((s + 20) / 3) % 2 === 0;
+    if ((s >= 13 && s <= 17) || (s >= COURSE_LENGTH_M - 2.5 && s <= COURSE_LENGTH_M + 2.5)) {
+      return stripe ? cCheckLight : cCheckDark;
     }
-    if (s <= 8) return stripe ? cFinishLight : cFinishDark;
     if ((s >= 228 && s <= 252) || (s >= 548 && s <= 572)) {
-      return lane === "center" ? cYellow : cRamp;
+      return zone === "center" ? cYellow : cJump;
     }
-    if (lane === "curbL" || lane === "curbR") return stripe ? cCurbRed : cCurbWhite;
-    if (lane === "center") return Math.floor(s / 6) % 2 === 0 ? cYellow : cAsphaltA;
-    return Math.floor(s / 8) % 2 === 0 ? cAsphaltA : cAsphaltB;
+    if (zone === "curb") return stripe ? cCurbRed : cCurbWhite;
+    if (zone === "shoulder") return cShoulder;
+    if (zone === "center") return Math.floor((s + 20) / 6) % 2 === 0 ? cYellow : cAsphaltA;
+    return Math.floor((s + 20) / 8) % 2 === 0 ? cAsphaltA : cAsphaltB;
   };
 
-  const road = buildIndexedRibbon(2.5, [
-    { x: -TRACK_HALF_WIDTH - 0.9, y: -0.35, color: (s) => roadColor(s, "curbL") },
-    { x: -TRACK_HALF_WIDTH, y: 0.08, color: (s) => roadColor(s, "curbL") },
-    { x: -TRACK_HALF_WIDTH + 0.9, y: 0.0, color: (s) => roadColor(s, "asphalt") },
-    { x: -0.35, y: 0.02, color: (s) => roadColor(s, "asphalt") },
-    { x: 0, y: 0.02, color: (s) => roadColor(s, "center") },
-    { x: 0.35, y: 0.02, color: (s) => roadColor(s, "asphalt") },
-    { x: TRACK_HALF_WIDTH - 0.9, y: 0.0, color: (s) => roadColor(s, "asphalt") },
-    { x: TRACK_HALF_WIDTH, y: 0.08, color: (s) => roadColor(s, "curbR") },
-    { x: TRACK_HALF_WIDTH + 0.9, y: -0.35, color: (s) => roadColor(s, "curbR") },
+  const road = buildIndexedRibbon(-10, TOTAL_TRACK_M, 2.5, [
+    { x: -TRACK_HALF_WIDTH - 0.8, y: -1.1, color: (s) => roadColor(s, "skirt") },
+    { x: -TRACK_HALF_WIDTH - 0.65, y: 0.16, color: (s) => roadColor(s, "curb") },
+    { x: -TRACK_HALF_WIDTH, y: 0.16, color: (s) => roadColor(s, "curb") },
+    { x: -TRACK_HALF_WIDTH + 0.55, y: 0.01, color: (s) => roadColor(s, "shoulder") },
+    { x: -0.28, y: 0.03, color: (s) => roadColor(s, "lane") },
+    { x: 0, y: 0.035, color: (s) => roadColor(s, "center") },
+    { x: 0.28, y: 0.03, color: (s) => roadColor(s, "lane") },
+    { x: TRACK_HALF_WIDTH - 0.55, y: 0.01, color: (s) => roadColor(s, "shoulder") },
+    { x: TRACK_HALF_WIDTH, y: 0.16, color: (s) => roadColor(s, "curb") },
+    { x: TRACK_HALF_WIDTH + 0.65, y: 0.16, color: (s) => roadColor(s, "curb") },
+    { x: TRACK_HALF_WIDTH + 0.8, y: -1.1, color: (s) => roadColor(s, "skirt") },
   ]);
 
-  // Guardrails: angled inward slightly so cars & Suika orbs ricochet back onto the road!
-  const cWallWood = new THREE.Color("#b45309");
-  const cWallTop = new THREE.Color("#fde047");
-  const cWallOut = new THREE.Color("#78350f");
+  const cRailWood = new THREE.Color("#92400e");
+  const cRailStripe = new THREE.Color("#d97706");
+  const cRailCap = new THREE.Color("#fef08a");
 
-  const leftWall = buildIndexedRibbon(5, [
-    { x: -TRACK_HALF_WIDTH - 1.1, y: -0.4, color: () => cWallOut },
-    { x: -TRACK_HALF_WIDTH - 0.9, y: WALL_HEIGHT, color: () => cWallTop },
-    { x: -TRACK_HALF_WIDTH - 0.3, y: WALL_HEIGHT, color: () => cWallTop },
-    { x: -TRACK_HALF_WIDTH - 0.05, y: -0.2, color: (s) => (Math.floor(s / 10) % 2 === 0 ? cWallWood : cCurbRed) },
+  const leftWall = buildIndexedRibbon(-10, TOTAL_TRACK_M, 4, [
+    { x: -TRACK_HALF_WIDTH - 1.15, y: -0.6, color: () => cRailWood },
+    { x: -TRACK_HALF_WIDTH - 0.95, y: WALL_HEIGHT, color: () => cRailCap },
+    { x: -TRACK_HALF_WIDTH - 0.45, y: WALL_HEIGHT, color: () => cRailCap },
+    { x: -TRACK_HALF_WIDTH - 0.2, y: 0.0, color: (s) => (Math.floor((s + 20) / 8) % 2 === 0 ? cRailWood : cRailStripe) },
   ]);
 
-  const rightWall = buildIndexedRibbon(5, [
-    { x: TRACK_HALF_WIDTH + 0.05, y: -0.2, color: (s) => (Math.floor(s / 10) % 2 === 0 ? cWallWood : cCurbRed) },
-    { x: TRACK_HALF_WIDTH + 0.3, y: WALL_HEIGHT, color: () => cWallTop },
-    { x: TRACK_HALF_WIDTH + 0.9, y: WALL_HEIGHT, color: () => cWallTop },
-    { x: TRACK_HALF_WIDTH + 1.1, y: -0.4, color: () => cWallOut },
+  const rightWall = buildIndexedRibbon(-10, TOTAL_TRACK_M, 4, [
+    { x: TRACK_HALF_WIDTH + 0.2, y: 0.0, color: (s) => (Math.floor((s + 20) / 8) % 2 === 0 ? cRailWood : cRailStripe) },
+    { x: TRACK_HALF_WIDTH + 0.45, y: WALL_HEIGHT, color: () => cRailCap },
+    { x: TRACK_HALF_WIDTH + 0.95, y: WALL_HEIGHT, color: () => cRailCap },
+    { x: TRACK_HALF_WIDTH + 1.15, y: -0.6, color: () => cRailWood },
   ]);
 
-  // Merge left and right guardrails into a single wall mesh + collider
   const lPos = leftWall.vertices;
   const rPos = rightWall.vertices;
   const wallVertices = new Float32Array(lPos.length + rPos.length);
@@ -343,17 +357,22 @@ export function buildCourseGeometry(): CourseMeshData {
   leftWall.geometry.dispose();
   rightWall.geometry.dispose();
 
-  // Scenic suburban canyon terrain skirt (visual backdrop)
+  // Continuous canyon hillside & valley floor directly beneath the road so there is zero sky void
   const cGrassA = new THREE.Color("#2d6a4f");
   const cGrassB = new THREE.Color("#40916c");
-  const cCliff = new THREE.Color("#52463a");
-  const terrain = buildIndexedRibbon(10, [
-    { x: -95, y: 26, color: () => cCliff },
-    { x: -42, y: 7, color: (s) => (Math.floor(s / 20) % 2 === 0 ? cGrassA : cGrassB) },
-    { x: -TRACK_HALF_WIDTH - 1.2, y: -0.5, color: () => cGrassB },
-    { x: TRACK_HALF_WIDTH + 1.2, y: -0.5, color: () => cGrassB },
-    { x: 42, y: 7, color: (s) => (Math.floor(s / 20) % 2 === 0 ? cGrassB : cGrassA) },
-    { x: 95, y: 26, color: () => cCliff },
+  const cSoil = new THREE.Color("#5c4738");
+  const cRidge = new THREE.Color("#4a5568");
+
+  const terrain = buildIndexedRibbon(-20, TOTAL_TRACK_M + 40, 8, [
+    { x: -160, y: 42, color: () => cRidge },
+    { x: -85, y: 19, color: (s) => (Math.floor((s + 30) / 24) % 2 === 0 ? cGrassA : cGrassB) },
+    { x: -32, y: 4.5, color: (s) => (Math.floor((s + 30) / 16) % 2 === 0 ? cGrassB : cGrassA) },
+    { x: -TRACK_HALF_WIDTH - 1.0, y: -0.5, color: () => cSoil },
+    { x: 0, y: -1.6, color: () => cSoil },
+    { x: TRACK_HALF_WIDTH + 1.0, y: -0.5, color: () => cSoil },
+    { x: 32, y: 4.5, color: (s) => (Math.floor((s + 30) / 16) % 2 === 0 ? cGrassA : cGrassB) },
+    { x: 85, y: 19, color: (s) => (Math.floor((s + 30) / 24) % 2 === 0 ? cGrassB : cGrassA) },
+    { x: 160, y: 42, color: () => cRidge },
   ]);
 
   return {
@@ -362,7 +381,7 @@ export function buildCourseGeometry(): CourseMeshData {
     terrainGeometry: terrain.geometry,
     roadVertices: road.vertices,
     roadIndices: road.indices,
-    wallVertices,
-    wallIndices,
+    wallVertices: wallVertices,
+    wallIndices: wallIndices,
   };
 }

@@ -16,6 +16,7 @@ import {
   COURSE_LENGTH_M,
   HAZARDS,
   SMASH_ZONES,
+  TRACK_HALF_WIDTH,
   buildCourseGeometry,
   sampleCourse,
 } from "./courseMath";
@@ -44,6 +45,27 @@ function StaticGlbLandmark({
   return (
     <group position={position} rotation={[0, rotationY, 0]} scale={[scale, scale, scale]}>
       <primitive object={cloned} />
+    </group>
+  );
+}
+
+function StartGateArch(): React.JSX.Element {
+  const s = useMemo(() => sampleCourse(15), []);
+  const span = TRACK_HALF_WIDTH * 2 + 1.2;
+  return (
+    <group position={s.position} rotation={[0, s.yaw, 0]}>
+      <mesh position={[-span * 0.5, 3.2, 0]} castShadow>
+        <boxGeometry args={[0.45, 6.4, 0.45]} />
+        <meshStandardMaterial color="#334155" flatShading roughness={0.6} />
+      </mesh>
+      <mesh position={[span * 0.5, 3.2, 0]} castShadow>
+        <boxGeometry args={[0.45, 6.4, 0.45]} />
+        <meshStandardMaterial color="#334155" flatShading roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 6.1, 0]} castShadow>
+        <boxGeometry args={[span + 0.6, 0.9, 0.5]} />
+        <meshStandardMaterial color="#f59e0b" flatShading roughness={0.5} />
+      </mesh>
     </group>
   );
 }
@@ -117,13 +139,13 @@ const SMASH_GLB: Record<string, string> = {
   sawhorse: "/assets/obs_roadwork_sawhorse_barricade.glb",
 };
 
-const SMASH_FINES: Record<string, { fine: number; label: string }> = {
-  lemonade: { fine: 650, label: "Timmy's Organic Lemonade Stand" },
-  sawhorse: { fine: 320, label: "City Roadwork Barricade" },
-  beans: { fine: 120, label: "Gary's Beans Stack" },
-  soda: { fine: 140, label: "Tris' Soda 6-Pack" },
-  emoji: { fine: 150, label: "Sus Canister" },
-  bottle: { fine: 95, label: "Artisanal Glass Bottle" },
+const SMASH_POINTS: Record<string, { pts: number; label: string }> = {
+  lemonade: { pts: 400, label: "Lemonade Stand" },
+  sawhorse: { pts: 250, label: "Barricade" },
+  beans: { pts: 100, label: "Gary's Beans" },
+  soda: { pts: 120, label: "Tris' Soda" },
+  emoji: { pts: 120, label: "Tin Can" },
+  bottle: { pts: 90, label: "Glass Bottle" },
 };
 
 export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps): React.JSX.Element {
@@ -136,7 +158,12 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
   const roadMat = useMemo(
     () =>
       applyRetroMaterial(
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.05 }),
+        new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.88,
+          metalness: 0.05,
+          side: THREE.DoubleSide,
+        }),
         { flatShading: true },
       ),
     [],
@@ -144,7 +171,12 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
   const wallMat = useMemo(
     () =>
       applyRetroMaterial(
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.08 }),
+        new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.82,
+          metalness: 0.08,
+          side: THREE.DoubleSide,
+        }),
         { flatShading: true },
       ),
     [],
@@ -152,7 +184,12 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
   const terrainMat = useMemo(
     () =>
       applyRetroMaterial(
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0.02 }),
+        new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.96,
+          metalness: 0.02,
+          side: THREE.DoubleSide,
+        }),
         { flatShading: true },
       ),
     [],
@@ -169,7 +206,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
     };
   }, [course, roadMat, wallMat, terrainMat]);
 
-  // Reset cooldowns on new run
   useEffect(() => {
     hazardCooldownRef.current.clear();
     boostCooldownRef.current.clear();
@@ -183,7 +219,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
     [targetHandlesRef],
   );
 
-  // Course static + dynamic smash targets
   const courseTargets = useMemo<DestructibleTargetSpec[]>(() => {
     const list: DestructibleTargetSpec[] = [];
     for (const z of SMASH_ZONES) {
@@ -207,7 +242,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
           importedUrl: SMASH_GLB[z.kind]!,
         });
       } else {
-        // Stack 3 cans or bottles in a pyramid!
         const labelId =
           z.kind === "beans"
             ? "garys-beans"
@@ -260,28 +294,27 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
 
   const treeProps = useMemo(() => {
     const out: { pos: [number, number, number]; scale: number }[] = [];
-    for (let s = 20; s < COURSE_LENGTH_M + 40; s += 26) {
+    for (let s = 0; s < COURSE_LENGTH_M + 40; s += 22) {
       const sample = sampleCourse(s);
       for (const side of [-1, 1] as const) {
-        const lat = side * (13.5 + ((s * 7 + (side > 0 ? 5 : 11)) % 14));
+        const lat = side * (12.5 + ((s * 7 + (side > 0 ? 5 : 11)) % 16));
         out.push({
           pos: [
             sample.position[0] + sample.right[0] * lat,
-            sample.position[1] + 0.8,
+            sample.position[1] + 0.4,
             sample.position[2] + sample.right[2] * lat,
           ],
-          scale: 0.9 + ((s * 13) % 7) * 0.12,
+          scale: 0.95 + ((s * 13) % 7) * 0.14,
         });
       }
     }
     return out;
   }, []);
 
-  const startSample = useMemo(() => sampleCourse(1.5), []);
+  const startRampSample = useMemo(() => sampleCourse(-4.5), []);
   const finishSample = useMemo(() => sampleCourse(COURSE_LENGTH_M), []);
-  const podiumSample = useMemo(() => sampleCourse(COURSE_LENGTH_M + 26), []);
+  const podiumSample = useMemo(() => sampleCourse(COURSE_LENGTH_M + 28), []);
 
-  // Proximity check for Boost Pads, Hazards, Vehicle Ram-to-Shatter & Suika Boulder Ram-to-Shatter
   useFrame(() => {
     const veh = vehicleRef.current;
     const body = veh?.body;
@@ -292,7 +325,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
 
     if (body && useDerbyStore.getState().phase === "racing") {
       const mass = Math.max(100, body.mass());
-      // 1. Boost pads
       for (const bp of BOOST_PADS) {
         const last = boostCooldownRef.current.get(bp.id) ?? 0;
         if (now - last < 1600) continue;
@@ -301,19 +333,19 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
         const by = s.position[1];
         const bz = s.position[2] + s.right[2] * bp.lateral;
         const dSq = (px - bx) ** 2 + (py - by) ** 2 + (pz - bz) ** 2;
-        if (dSq < 10.5) {
+        if (dSq < 11) {
           boostCooldownRef.current.set(bp.id, now);
           body.applyImpulse(
-            { x: s.tangent[0] * mass * 11, y: mass * 1.4, z: s.tangent[2] * mass * 11 },
+            { x: s.tangent[0] * mass * 10, y: mass * 0.8, z: s.tangent[2] * mass * 10 },
             true,
           );
           derbyLive.boostCharge = Math.min(100, derbyLive.boostCharge + 35);
           derbyAudio.playBoostPad();
-          useDerbyStore.getState().pushCommentary("TURBO STRIP", "DOWNHILL NITRO PAD! HANG ON TO YOUR DENTURES!", "#22d3ee");
+          useDerbyStore.getState().addScore(150);
+          useDerbyStore.getState().pushToast("Nitro Pad +150", "#22d3ee");
         }
       }
 
-      // 2. Comedy hazards
       for (const hz of hazardWorldItems) {
         const last = hazardCooldownRef.current.get(hz.id) ?? 0;
         if (now - last < 2500) continue;
@@ -321,40 +353,25 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
         if (dSq < 4.8) {
           hazardCooldownRef.current.set(hz.id, now);
           if (hz.kind === "hydrant" || hz.kind === "manhole") {
-            body.applyImpulse({ x: 0, y: mass * 12.5, z: derbyLive.playerForward[2] * mass * 3 }, true);
-            body.applyTorqueImpulse({ x: mass * 2.2, y: 0, z: (Math.random() - 0.5) * mass * 2.5 }, true);
+            body.applyImpulse({ x: 0, y: mass * 11, z: derbyLive.playerForward[2] * mass * 3 }, true);
             derbyAudio.playHydrantWhoosh();
-            useDerbyStore.getState().addFine(450);
-            useDerbyStore.getState().pushCommentary(
-              "PUBLIC WORKS",
-              hz.kind === "hydrant"
-                ? "FIRE HYDRANT GEYSER! +$450 Municipal Water Fine!"
-                : "SEWER MANHOLE POP! Free chiropractic adjustment (+$350)!",
+            useDerbyStore.getState().pushToast(
+              hz.kind === "hydrant" ? "Hydrant Geyser Launch!" : "Manhole Pop!",
               "#38bdf8",
             );
           } else if (hz.kind === "banana") {
-            body.applyTorqueImpulse({ x: 0, y: mass * 9.5 * (Math.random() > 0.5 ? 1 : -1), z: 0 }, true);
+            body.applyTorqueImpulse({ x: 0, y: mass * 7.5 * (Math.random() > 0.5 ? 1 : -1), z: 0 }, true);
             derbyAudio.playBananaSlip();
-            useDerbyStore.getState().pushCommentary(
-              "CARTOON PHYSICS",
-              "BANANA CRATE SPILL! Spanky's knees are filing for workers' comp!",
-              "#facc15",
-            );
+            useDerbyStore.getState().pushToast("Banana Spinout!", "#facc15");
           } else {
-            body.applyImpulse({ x: (Math.random() - 0.5) * mass * 6, y: mass * 4.5, z: 0 }, true);
+            body.applyImpulse({ x: (Math.random() - 0.5) * mass * 5, y: mass * 3.5, z: 0 }, true);
             derbyAudio.playShatter("metal");
-            useDerbyStore.getState().addFine(250);
-            useDerbyStore.getState().pushCommentary(
-              "PARKING LOT",
-              "ROGUE SHOPPING CART COLLISION! +$250 Grocery Liability!",
-              "#fb923c",
-            );
+            useDerbyStore.getState().pushToast("Rogue Cart Impact!", "#fb923c");
           }
         }
       }
     }
 
-    // 3. Vehicle + Suika Boulder Ram-to-Shatter on DestructibleTargets!
     const handles = targetHandlesRef.current;
     if (handles.size > 0) {
       const suikaBodies = useSuikaAvalancheStore.getState().bodies;
@@ -366,9 +383,8 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
         const ty = snap.position[1];
         const tz = snap.position[2];
 
-        // Player car smash check
-        if (carSpeed > 3.5) {
-          const hitRadiusSq = snap.kind === "imported-glb" ? 7.8 : 4.2;
+        if (carSpeed > 3.2) {
+          const hitRadiusSq = snap.kind === "imported-glb" ? 8.2 : 4.5;
           const dSq = (px - tx) ** 2 + (py - ty) ** 2 + (pz - tz) ** 2;
           if (dSq <= hitRadiusSq) {
             handle.applyHit({
@@ -382,7 +398,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
           }
         }
 
-        // Suika orb smash check
         for (const [, orbRb] of suikaBodies) {
           try {
             const op = orbRb.translation();
@@ -399,7 +414,7 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
               break;
             }
           } catch {
-            // body despawned mid-step
+            // body removed
           }
         }
       });
@@ -418,44 +433,39 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
             : targetId.includes("emoji")
               ? "emoji"
               : "bottle";
-    const meta = SMASH_FINES[key] ?? SMASH_FINES.beans!;
+    const meta = SMASH_POINTS[key] ?? SMASH_POINTS.beans!;
     derbyAudio.playShatter(key === "bottle" ? "glass" : key === "lemonade" || key === "sawhorse" ? "wood" : "metal");
-    useDerbyStore.getState().recordShatter(meta.fine, meta.label);
+    useDerbyStore.getState().recordShatter(meta.pts, meta.label);
   }, []);
 
   return (
     <group name="DownhillCourseWorld">
-      {/* Continuous Downhill Road Trimesh */}
       <RigidBody type="fixed" colliders={false} friction={0.95} restitution={0.04}>
         <TrimeshCollider args={[course.roadVertices, course.roadIndices]} />
         <mesh geometry={course.roadGeometry} material={roadMat} receiveShadow />
       </RigidBody>
 
-      {/* Banked Guardrail Chute Trimesh */}
       <RigidBody type="fixed" colliders={false} friction={0.2} restitution={0.55}>
         <TrimeshCollider args={[course.wallVertices, course.wallIndices]} />
         <mesh geometry={course.wallGeometry} material={wallMat} receiveShadow />
       </RigidBody>
 
-      {/* Catch-all Safety Floor below mountain */}
-      <RigidBody type="fixed" colliders={false} position={[0, -18, 450]}>
+      <RigidBody type="fixed" colliders={false} position={[0, -24, 450]}>
         <CuboidCollider args={[300, 1, 600]} />
       </RigidBody>
 
-      {/* Scenic Hillside Skirt */}
       <mesh geometry={course.terrainGeometry} material={terrainMat} receiveShadow />
 
-      {/* Pines along the HOA Canyon */}
       {treeProps.map((t, idx) => (
         <PineTreeProp key={idx} position={t.pos} scale={t.scale} />
       ))}
 
-      {/* Start Ramp, Finish Arch, Winners Podium */}
+      <StartGateArch />
       <StaticGlbLandmark
         url="/assets/derby_start_ramp_3x6.glb"
-        position={[startSample.position[0], startSample.position[1] + 0.05, startSample.position[2]]}
-        rotationY={startSample.yaw}
-        scale={1.8}
+        position={[startRampSample.position[0], startRampSample.position[1], startRampSample.position[2]]}
+        rotationY={startRampSample.yaw}
+        scale={1.5}
       />
       <StaticGlbLandmark
         url="/assets/derby_finish_arch_6x6.glb"
@@ -465,17 +475,15 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
       />
       <StaticGlbLandmark
         url="/assets/derby_winners_podium_3x3.glb"
-        position={[podiumSample.position[0], podiumSample.position[1] + 0.2, podiumSample.position[2]]}
+        position={[podiumSample.position[0], podiumSample.position[1] + 0.15, podiumSample.position[2]]}
         rotationY={podiumSample.yaw + Math.PI}
         scale={2.0}
       />
 
-      {/* Boost Strips */}
       {BOOST_PADS.map((bp) => (
         <BoostPadStrip key={bp.id} s={bp.s} lateral={bp.lateral} />
       ))}
 
-      {/* Interactive Hazards */}
       {hazardWorldItems.map((hz) => (
         <group key={hz.id}>
           <StaticGlbLandmark url={HAZARD_GLB[hz.kind]!} position={hz.pos} rotationY={hz.yaw} scale={1.35} />
@@ -488,7 +496,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
         </group>
       ))}
 
-      {/* Course Destructible Lemonade Stands, Sawhorses, Beans/Soda Cans & Bottles */}
       {courseTargets.map((spec) => (
         <DestructibleTarget
           key={spec.id}
@@ -498,7 +505,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
         />
       ))}
 
-      {/* Player-Dropped Junk Cans & Bottles */}
       {dynamicJunk.map((spec) => (
         <DestructibleTarget
           key={spec.id}
@@ -508,7 +514,6 @@ export function CourseWorld({ targetHandlesRef, vehicleRef }: CourseWorldProps):
         />
       ))}
 
-      {/* Rolling Golden-Ratio Suika Orbs */}
       <SuikaAvalanche />
     </group>
   );
