@@ -365,7 +365,7 @@ export function PlayerController({
       if (derbyLive.countdownElapsed >= 2.6) {
         st.setPhase("racing");
         const mass = Math.max(100, veh.body.mass());
-        veh.body.applyImpulse({ x: 0, y: 0, z: mass * 12 }, true);
+        veh.body.applyImpulse({ x: 0, y: -mass * 0.5, z: mass * 3.5 }, true);
       }
       return;
     }
@@ -377,6 +377,15 @@ export function PlayerController({
     let rank = 1;
     for (const r of derbyLive.rivals) {
       if (r.s > derbyLive.playerS) rank++;
+      // Soft bumper check so ramming a rival spins them out instead of hitting a kinematic brick wall
+      if (r.spinTimer <= 0.4) {
+        const dSq = (pos.x - r.pos[0]) ** 2 + (pos.y - r.pos[1]) ** 2 + (pos.z - r.pos[2]) ** 2;
+        if (dSq < 5.2 && derbyLive.playerSpeedKmh > 18) {
+          r.spinTimer = 1.6;
+          st.addScore(150);
+          st.pushToast(`Bumped ${r.name} +150`, "#facc15");
+        }
+      }
     }
     derbyLive.rank = rank;
 
@@ -386,11 +395,15 @@ export function PlayerController({
       Boolean(getTouchInput().boost);
     if (shiftHeld && derbyLive.boostCharge > 2 && st.phase === "racing") {
       const mass = Math.max(100, veh.body.mass());
+      const isFlightMode = Boolean(readyRide?.flightMode);
+      const boostY = isFlightMode
+        ? veh.bodyZAxis.y * mass * 14 * dt
+        : (Math.min(0, veh.bodyZAxis.y * 0.5) - 0.18) * mass * 12 * dt;
       veh.body.applyImpulse(
         {
-          x: veh.bodyZAxis.x * mass * 15 * dt,
-          y: veh.bodyZAxis.y * mass * 15 * dt,
-          z: veh.bodyZAxis.z * mass * 15 * dt,
+          x: veh.bodyZAxis.x * mass * 12 * dt,
+          y: boostY,
+          z: veh.bodyZAxis.z * mass * 12 * dt,
         },
         true,
       );

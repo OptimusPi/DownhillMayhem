@@ -96,7 +96,7 @@ function RivalCarEntity({ spec }: { readonly spec: RivalSpec }): React.JSX.Eleme
       position={[initialSample.position[0], initialSample.position[1] + 0.45, initialSample.position[2]]}
       userData={{ rivalId: spec.id, rivalIndex: spec.index }}
     >
-      <CuboidCollider args={[0.72, 0.55, 1.3]} />
+      <CuboidCollider args={[0.72, 0.55, 1.3]} sensor />
       <group ref={visualSpinRef}>
         <primitive object={cloned} />
         <mesh position={[0, 1.65, 0]}>

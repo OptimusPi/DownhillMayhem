@@ -66,10 +66,10 @@ export const derbyLive = {
   boostCharge: 100,
   countdownElapsed: 0,
   rivals: [
-    { id: "rival-1", name: "Red Wagon", s: 11.5, lateral: -3.4, speedMps: 0, spinTimer: 0, pos: [3.4, START_ELEVATION_M, 11.5] },
-    { id: "rival-2", name: "Cardboard Booster", s: 10.5, lateral: 3.4, speedMps: 0, spinTimer: 0, pos: [-3.4, START_ELEVATION_M, 10.5] },
-    { id: "rival-3", name: "Oak Barrel", s: 9.2, lateral: -1.8, speedMps: 0, spinTimer: 0, pos: [1.8, START_ELEVATION_M, 9.2] },
-    { id: "rival-4", name: "Crate Rod", s: 9.8, lateral: 1.8, speedMps: 0, spinTimer: 0, pos: [-1.8, START_ELEVATION_M, 9.8] },
+    { id: "rival-1", name: "Red Wagon", s: 18, lateral: -3.6, speedMps: 0, spinTimer: 0, pos: [3.6, START_ELEVATION_M, 18] },
+    { id: "rival-2", name: "Cardboard Booster", s: 22, lateral: 3.6, speedMps: 0, spinTimer: 0, pos: [-3.6, START_ELEVATION_M, 22] },
+    { id: "rival-3", name: "Oak Barrel", s: 14, lateral: -2.6, speedMps: 0, spinTimer: 0, pos: [2.6, START_ELEVATION_M, 14] },
+    { id: "rival-4", name: "Crate Rod", s: 15, lateral: 2.6, speedMps: 0, spinTimer: 0, pos: [-2.6, START_ELEVATION_M, 15] },
   ] as RivalLiveState[],
 };
 
@@ -85,10 +85,10 @@ export function resetDerbyLive(): void {
   derbyLive.boostCharge = 100;
   derbyLive.countdownElapsed = 0;
   const startOffsets = [
-    { s: 11.5, lat: -3.4 },
-    { s: 10.5, lat: 3.4 },
-    { s: 9.2, lat: -1.8 },
-    { s: 9.8, lat: 1.8 },
+    { s: 18, lat: -3.6 },
+    { s: 22, lat: 3.6 },
+    { s: 14, lat: -2.6 },
+    { s: 15, lat: 2.6 },
   ];
   derbyLive.rivals.forEach((r, idx) => {
     const off = startOffsets[idx]!;

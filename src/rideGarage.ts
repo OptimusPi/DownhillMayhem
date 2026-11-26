@@ -266,9 +266,10 @@ function buildSpaceFighterGroup(): THREE.Group {
   fuselage.rotation.x = Math.PI * 0.5;
   fuselage.position.set(0, 0.75, 0.25);
 
-  const canopy = new THREE.Mesh(new THREE.OctahedronGeometry(0.56, 0), canopyMat);
+  const canopyGeo = new THREE.OctahedronGeometry(0.56, 0);
+  canopyGeo.scale(0.75, 0.6, 1.85);
+  const canopy = new THREE.Mesh(canopyGeo, canopyMat);
   canopy.name = "Fighter_Canopy";
-  canopy.scale.set(0.75, 0.6, 1.85);
   canopy.position.set(0, 1.18, 0.65);
 
   const wingL = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.14, 2.4), hullMat);
